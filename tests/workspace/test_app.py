@@ -42,14 +42,37 @@ def test_native_form_creates_persisted_project_and_all_pages_render(tmp_path, mo
     next(x for x in app.checkbox if x.label.startswith("我已查看这一版本")).check()
     next(b for b in app.button if b.label == "记录我的确认").click().run()
     assert not app.exception and workspace.snapshot(p)["status"]["approvals"]["authorization"], [x.value for x in app.error]
+    reopened = AppTest.from_file(str(source), default_timeout=15).run()
+    assert not reopened.exception
+    assert reopened.session_state["workspace"].directory == workspace.directory
+    reopened.selectbox[0].set_value(p).run()
+    assert not reopened.exception
+    assert reopened.session_state["project"] == p
+    assert not reopened.session_state["workspace"].snapshot(p)["has_session_key"]
 
 
 def test_cloud_upload_controls_require_consent(tmp_path, monkeypatch):
+    from cra_workspace import environment
+    # UI boundary test double only; real OS probes are covered separately.
+    monkeypatch.setattr(environment, "inspect_host", lambda: {"passed": False, "at": "SYNTHETIC UI FIXTURE"})
     monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui"))
     monkeypatch.setenv("CRA_DEPLOYMENT", "cloud")
     app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
     assert not app.exception
+    assert any("自动统计隔离自检未通过" in x.value for x in app.warning)
     # The uploader is not merely disabled: it isn't mounted before consent.
     assert not app.get("file_uploader")
     app.checkbox[1].check().run()
     assert len(app.get("file_uploader")) == 1
+    app.text_input[0].set_value("Cloud synthetic UI fixture")
+    app.text_area[0].set_value("Test refused execution when isolation is unavailable")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    p = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+    workspace.import_data(p, "synthetic.csv", b"x,y\n1,2\n2,3\n", cloud_consent=True)
+    app.run()
+    assert not app.exception
+    assert next(b for b in app.button if b.label == "继续执行获批研究").disabled
+    assert workspace.snapshot(p)["files_ready"]
+    assert workspace.snapshot(p)["status"]["budget"]["calls"] == 0

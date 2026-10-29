@@ -15,6 +15,7 @@ import streamlit as st
 
 from cra_engine.common import EngineError
 from .service import Workspace
+from . import environment
 
 PAGES = ["研究概览", "材料与测量", "文献与证据", "研究计划", "分析结果", "稿件与交付", "模型与设置"]
 TASK_NAMES = dict(audit="数据审计", corpus="文献定位", protocol="研究设计", analysis="统计分析", claims="发现与证据", draft="研究稿", method_review="方法复核", evidence_review="论述复核")
@@ -71,6 +72,13 @@ def manuscript(text):
             st.subheader(paragraph[3:].replace("[", "\\[").replace("!", "\\!"))
         else:
             st.text(paragraph)
+
+
+@st.cache_data(ttl=300, show_spinner="正在检查云端执行环境，不调用模型…")
+def hosting_environment(source_identity):
+    # This cached value contains host capabilities only, never project state,
+    # materials, credentials or review declarations.
+    return environment.inspect_host()
 
 
 def object_view(s, name):
@@ -187,7 +195,8 @@ def overview(w, p, s):
     with b: confirm_button(w, p, "protocol", s, disabled=value(s, "protocol") is None or not s["measurement_reviewed"])
     with c: confirm_button(w, p, "final", s, disabled=not state["readiness"]["ready_for_final"])
     a, b = st.columns([3, 1])
-    if a.button("继续执行获批研究", type="primary", disabled=s["running"] or not s["files_ready"], width="stretch"):
+    can_compute = w.deployment != "cloud" or st.session_state.get("cloud_environment", {}).get("passed", False)
+    if a.button("继续执行获批研究", type="primary", disabled=s["running"] or not s["files_ready"] or not can_compute, width="stretch"):
         if act(lambda: w.start(p), "后台已启动；完成、阻断或等待确认将如实显示。 "): st.rerun()
     if b.button("安全暂停", disabled=not s["running"], width="stretch"):
         if act(lambda: w.pause(p), "已停止调度新任务，正在结束本地执行并保留检查点。"): st.rerun()
@@ -431,7 +440,9 @@ def settings(w, p, s):
     with st.expander("运行环境检查（不调用模型）", expanded=s["environment"] is not None and not s["environment"]["passed"]):
         st.caption("实际检查统计进程的网络隔离、越界写入和控制状态读取；安装了依赖不代表托管平台允许隔离。")
         if st.button("执行环境自检", disabled=s["running"]):
-            if act(lambda: w.check_environment(p), "环境检查已完成，请查看实际结果。"): st.rerun()
+            if act(lambda: w.check_environment(p), "环境检查已完成，请查看实际结果。"):
+                hosting_environment.clear()
+                st.rerun()
         if s["environment"]:
             if not s["environment"]["passed"]: st.error(s["environment"]["message"])
             st.json(s["environment"])
@@ -513,9 +524,24 @@ def main():
         st.session_state.route = st.session_state.pop("next_route")
     if "workspace" not in st.session_state:
         mode = os.environ.get("CRA_DEPLOYMENT", "cloud")
-        root = Path(os.environ.get("CRA_WORKSPACE_ROOT", str(Path(tempfile.gettempdir()) / "cra-workspaces")))
-        st.session_state.workspace = Workspace(root, deployment=mode)
+        default_root = Path(tempfile.gettempdir()) / "cra-workspaces" if mode == "cloud" else Path.cwd() / ".cra-workspaces"
+        root = Path(os.environ.get("CRA_WORKSPACE_ROOT", str(default_root)))
+        owner = None
+        if mode == "local":
+            import hashlib
+            owner = hashlib.sha256((str(root.resolve()) + ":" + str(getattr(os, "getuid", lambda: "local-user")())).encode()).hexdigest()[:32]
+        st.session_state.workspace = Workspace(root, owner=owner, deployment=mode)
     w = st.session_state.workspace
+    st.caption("开发预览 · " + ("云端处理" if w.deployment == "cloud" else "本机处理") + " · 尚未完成正式科研发布验收")
+    if w.deployment == "cloud":
+        from cra_engine.common import digest, sha
+        from cra_engine.statistics import recipe_identity
+        identity = digest({"recipe": recipe_identity(), "diagnostic": sha(Path(environment.__file__))})
+        capability = hosting_environment(identity)
+        st.session_state.cloud_environment = capability
+        if not capability["passed"]:
+            st.warning("当前云端仅提供材料与方案工作区：自动统计隔离自检未通过，研究执行已禁用。分析请在已验证的本机环境完成，或配置经验证的独立执行服务器。")
+            st.link_button("查看本机运行与恢复说明", "https://github.com/RGaoly/communication-research-agent-app/blob/main/docs/STREAMLIT_WORKSPACE_ZH.md")
     with st.sidebar:
         st.markdown('<div class="brand">COMMUNICATION<br>RESEARCH AGENT</div>', unsafe_allow_html=True)
         st.caption("开发预览 · 云端处理" if w.deployment == "cloud" else "开发预览 · 本机处理")
@@ -534,7 +560,7 @@ def main():
                 st.rerun()
         route = st.radio("研究工作区", PAGES, key="route", label_visibility="collapsed")
         st.divider()
-        st.caption("材料不会自动发布到GitHub。云端空间和浏览器会话可能回收，请及时下载私有恢复备份。页面刷新或断连后若会话丢失，可重新导入备份。")
+        st.caption("材料不会自动发布到GitHub。" + ("云端空间和浏览器会话可能回收，请及时下载私有恢复备份。会话丢失后可重新导入备份。" if w.deployment == "cloud" else "研究保存在本机研究库，重新打开仍可选择；密钥按浏览器会话隔离，需要重新填写。请定期备份。"))
     flash = st.session_state.pop("flash", None)
     if flash and flash[0]: (st.error if flash[1] else st.success)(flash[0])
     p = st.session_state.get("project")
@@ -554,7 +580,7 @@ def main():
             st.error("无法读取当前项目状态。请保留恢复备份并检查运行环境；没有回显原始材料。")
     # Don't refresh live forms: polling is enabled only on the overview while an
     # actual background worker exists; all other views rerun on user actions.
-    if route == PAGES[0] and w._busy(p): project_content()
+    if route == PAGES[0] and w.running(p): project_content()
     else:
         try: pages[route](w, p, w.snapshot(p))
         except EngineError as exc: st.error(str(exc))

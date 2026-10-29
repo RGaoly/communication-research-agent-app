@@ -66,18 +66,26 @@ class Workspace:
         worker = self._threads.get(project)
         return worker is not None and worker.is_alive()
 
-    def _editable(self, project):
-        require(not self._busy(project), "请先安全暂停运行，再修改输入或方案")
+    def running(self, project):
+        """Observe other local browser sessions without sharing their keys."""
+        if self._busy(project): return True
         import os
-        with closing(sqlite3.connect(str(self._path(project) / ".cra/state.sqlite"))) as db:
-            for (pid,) in db.execute("SELECT pid FROM leases"):
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    continue
-                except PermissionError:
-                    pass
-                raise EngineError("项目已有运行租约，请先安全暂停；不会并发改写输入")
+        database = self._path(project) / ".cra/state.sqlite"
+        if not database.is_file(): return False
+        try:
+            with closing(sqlite3.connect(database)) as db:
+                pids = [r[0] for r in db.execute("SELECT pid FROM leases")]
+        except sqlite3.Error:
+            return False  # Store validation still refuses all subsequent writes.
+        for pid in pids:
+            try: os.kill(pid, 0)
+            except ProcessLookupError: continue
+            except PermissionError: pass
+            return True
+        return False
+
+    def _editable(self, project):
+        require(not self.running(project), "项目正在执行，请先安全暂停；不会并发改写输入或方案")
 
     def _ready_files(self, root, brief):
         return all(within(root, brief["data"][k]).is_file() for k in ("csv", "codebook"))
@@ -101,14 +109,15 @@ class Workspace:
             if root.is_dir() and ID.fullmatch(root.name) and (root / "project.json").is_file():
                 brief = load(root / "brief.json")
                 result.append({"project_id": root.name, "name": brief["name"], "question": brief["theme"],
-                               "synthetic": load(root / "project.json")["synthetic"], "running": self._busy(root.name)})
+                               "synthetic": load(root / "project.json")["synthetic"], "running": self.running(root.name)})
         return result
 
     def snapshot(self, project):
         with self._lock, self._store(project) as store:
             brief = load(store.root / "brief.json")
             ready = self._ready_files(store.root, brief)
-            if ready and not self._busy(project):
+            running = self.running(project)
+            if ready and not running:
                 sync(store)
             elif not ready:
                 with store.tx(): store.put("brief", "research_brief", validate_brief(brief))
@@ -123,7 +132,7 @@ class Workspace:
             events = [dict(r) for r in store.db.execute("SELECT seq,at,action FROM events ORDER BY seq DESC LIMIT 30")]
             return {"project_id": project, "engine_version": __version__, "deployment": self.deployment,
                     "synthetic": store.meta("synthetic", False), "brief": brief, "status": output,
-                    "running": self._busy(project), "job": store.meta("workspace_job"), "environment": store.meta("workspace_environment"), "materials": load(store.root / ".cra/materials.json"),
+                    "running": running, "job": store.meta("workspace_job"), "environment": store.meta("workspace_environment"), "materials": load(store.root / ".cra/materials.json"),
                     "codebook": load(within(store.root, brief["data"]["codebook"])) if ready else None,
                     "files_ready": ready, "objects": objects, "specifications": specs, "calls": calls,
                     "events": events, "has_session_key": self.credentials.get(project, digest(brief["model"])) is not None,
@@ -406,15 +415,23 @@ class Workspace:
             require(store.approved("authorization"), "请先批准当前项目授权")
             if store.get("brief")["permissions"]["model"]:
                 require(self.credentials.get(project, digest(store.get("brief")["model"])), "本次运行需要重新填写当前会话密钥")
+            owner = uuid.uuid4().hex
             with store.tx():
                 store.set_meta("paused", False)
                 store.set_meta("workspace_job", {"state": "starting", "at": now(), "kind": "model_contract" if model_test else "research"})
-            thread = threading.Thread(target=self._run, args=(project, model_test), daemon=True, name="cra-" + project[:8])
+                import os
+                store.db.execute("INSERT OR REPLACE INTO leases VALUES ('workspace',?,?,?)", (owner, os.getpid(), now()))
+            thread = threading.Thread(target=self._run, args=(project, model_test, owner), daemon=True, name="cra-" + project[:8])
             self._threads[project] = thread
-            thread.start()
+            try: thread.start()
+            except BaseException:
+                with store.tx():
+                    store.db.execute("DELETE FROM leases WHERE name='workspace' AND owner=?", (owner,))
+                    store.set_meta("workspace_job", {"state": "failed", "at": now(), "message": "后台进程未能启动，没有执行研究或模型请求。"})
+                raise
         return {"started": True, "project_id": project}
 
-    def _run(self, project, model_test):
+    def _run(self, project, model_test, owner):
         try:
             with self._store(project) as store:
                 if model_test:
@@ -427,13 +444,16 @@ class Workspace:
             with self._store(project) as store:
                 with store.tx():
                     store.set_meta("workspace_job", {"state": "failed", "at": now(), "message": str(exc) if isinstance(exc, EngineError) else "执行失败，请检查材料或运行环境；原始内容不回显"})
+        finally:
+            with self._store(project) as store:
+                with store.tx(): store.db.execute("DELETE FROM leases WHERE name='workspace' AND owner=?", (owner,))
 
     def pause(self, project):
         with self._store(project) as store:
             with store.tx():
                 store.set_meta("paused", True)
                 store.event("workspace_pause_requested", {})
-        return {"pause_requested": True, "still_running": self._busy(project)}
+        return {"pause_requested": True, "still_running": self.running(project)}
 
     def reconcile(self, project, call, amount, note, confirmed=False):
         require(confirmed is True and isinstance(note, str) and len(note.strip()) >= 8, "请根据实际账单核对并说明依据")
@@ -464,27 +484,8 @@ class Workspace:
         """An actual non-billing isolation probe, not an availability guess."""
         with self._lock, self._store(project) as store:
             self._editable(project)
-            from cra_engine.isolation import doctor
-            from cra_engine.statistics import recipe_identity
-            report = {"at": now(), "engine_version": __version__, "recipe": digest(recipe_identity())}
-            from cra_engine.common import source_fingerprint
-            report.update(engine_source_sha256=source_fingerprint(), workspace_source_sha256=sha(Path(__file__)))
-            import platform
-            report["platform"] = {"system": platform.system(), "kernel": platform.release(), "machine": platform.machine()}
-            if platform.system() == "Linux":
-                import ctypes, ctypes.util, errno
-                report["platform"]["libseccomp_available"] = bool(ctypes.util.find_library("seccomp"))
-                if platform.machine() in ("x86_64", "aarch64", "riscv64"):
-                    libc = ctypes.CDLL(None, use_errno=True)
-                    libc.syscall.restype = ctypes.c_long
-                    abi = libc.syscall(444, ctypes.c_void_p(), ctypes.c_size_t(0), ctypes.c_uint(1))
-                    report["platform"]["landlock_abi"] = abi if abi >= 0 else None
-                    if abi < 0: report["platform"]["landlock_error"] = errno.errorcode.get(ctypes.get_errno(), "UNKNOWN")
-            try:
-                result = doctor(store)
-                report.update(passed=True, isolation=result["isolation"], controls=result["result"])
-            except EngineError:
-                report.update(passed=False, message="当前托管环境未通过真实隔离自检，已拒绝无人值守统计；可整理材料或导出备份至经验证的本机运行。")
+            from .environment import inspect_environment
+            report = inspect_environment(store)
             with store.tx():
                 store.set_meta("workspace_environment", report)
                 store.event("workspace_environment_checked", report)

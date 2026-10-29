@@ -10,3 +10,4 @@ build/
 dist/
 .streamlit/secrets.toml
 /.cra-workspaces/
+/.cra-runtime/

@@ -205,6 +205,31 @@ def test_event_polling_concurrent_commits(workspace):
     assert not errors
 
 
+def test_local_sessions_observe_running_lease_and_cannot_edit(workspace):
+    p = prepare(workspace)
+    other = Workspace(workspace.directory.parent, owner=workspace.directory.name)
+    with workspace._store(p) as store:
+        with store.tx(): store.db.execute("INSERT INTO leases VALUES ('workspace','synthetic-supervisor',?, 'TEST')", (os.getpid(),))
+    try:
+        assert other.running(p)
+        assert other.snapshot(p)["running"]
+        with pytest.raises(EngineError): other.save_brief(p, {"theme": "Must not race the worker"})
+        assert other.snapshot(p)["brief"]["theme"] == "How do generated x and y associate?"
+    finally:
+        with workspace._store(p) as store:
+            with store.tx(): store.db.execute("DELETE FROM leases WHERE name='workspace'")
+
+
+def test_failed_thread_start_releases_supervisor_lease(workspace, monkeypatch):
+    p = prepare(workspace)
+    approve(workspace, p, "authorization")
+    def fail(_): raise RuntimeError("SYNTHETIC thread-start failure")
+    monkeypatch.setattr(threading.Thread, "start", fail)
+    with pytest.raises(RuntimeError): workspace.start(p)
+    assert not workspace.running(p)
+    assert workspace.snapshot(p)["job"]["state"] == "failed"
+
+
 def test_bad_evidence_never_saved(workspace):
     p = prepare(workspace)
     reference = workspace.references(p)[0]
