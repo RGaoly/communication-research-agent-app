@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "columns": {
+    "study_id": {
+      "type": "id",
+      "sensitive": false,
+      "question": "模拟研究编号，非真实身份"
+    },
+    "exposure": {
+      "type": "number",
+      "sensitive": false,
+      "min": 0,
+      "max": 4,
+      "question": "模拟媒体接触指标"
+    },
+    "trust": {
+      "type": "number",
+      "sensitive": false,
+      "min": 1,
+      "max": 5,
+      "question": "模拟媒体信任指标"
+    },
+    "group": {
+      "type": "category",
+      "sensitive": false,
+      "allowed": [
+        "A",
+        "B"
+      ],
+      "question": "模拟组别，不代表国家或处理"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "id": "sample",
+    "source": "sample_n",
+    "value": 60,
+    "decimals": 0,
+    "text": "工作数据样本 N = 60"
+  },
+  {
+    "id": "modelN",
+    "source": "models.m1.n",
+    "value": 60,
+    "decimals": 0,
+    "text": "完整案例模型 N = 60"
+  },
+  {
+    "id": "slope",
+    "source": "models.m1.b",
+    "value": 0.384,
+    "decimals": 3,
+    "text": "斜率 b = 0.384"
+  },
+  {
+    "id": "stderr",
+    "source": "models.m1.se",
+    "value": 0.066,
+    "decimals": 3,
+    "text": "经典标准误 SE = 0.066"
+  },
+  {
+    "id": "rsquare",
+    "source": "models.m1.r2",
+    "value": 0.369,
+    "decimals": 3,
+    "text": "模型 R² = 0.369"
+  }
+]

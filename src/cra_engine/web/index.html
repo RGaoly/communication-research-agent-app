@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="cra-session" content="__SESSION_TOKEN__"><title>传播研究智能体 · 模型配置</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body><main>
+<header><div><div class="eyebrow">COMMUNICATION RESEARCH AGENT</div><h1>模型配置</h1><p>在本机连接你的模型，按预算运行研究小任务。</p></div><span class="badge" id="badge">尚未保存</span></header>
+<section class="card" aria-labelledby="config-title"><div class="section-top"><h2 id="config-title">接入配置</h2><span class="local">● 本机服务</span></div>
+<div class="row"><label for="vendor">模型厂商</label><select id="vendor"><option value="deepseek">DeepSeek</option><option value="custom">其他 OpenAI 兼容端点</option></select></div>
+<div class="row"><label for="apiKey">API Key</label><div class="keybox"><input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="在这里填写密钥"><button id="toggleKey" type="button" aria-label="显示密钥">显示</button></div></div>
+<p class="hint">密钥仅留在页面和单次本机请求内存中，刷新需重新填写；不写入浏览器存储、配置或日志。</p>
+<details id="advanced"><summary>地址、模型与费用设置</summary><div class="advanced">
+<div class="row"><label for="baseUrl">Base URL</label><input id="baseUrl" value="https://api.deepseek.com/v1" spellcheck="false"></div>
+<div class="row"><label for="model">模型 ID</label><input id="model" value="deepseek-flash" list="modelList" spellcheck="false"><datalist id="modelList"></datalist></div>
+<div id="chips" class="chips"></div>
+<div class="row"><label for="maxTokens">输出 token 上限</label><input id="maxTokens" type="number" min="16" max="4096" value="256"></div>
+<div class="row"><label for="inputPrice">输入 / 百万 token</label><div class="money"><span>$</span><input id="inputPrice" type="number" min="0.000001" step="0.01" value="0.30"></div></div>
+<div class="row"><label for="outputPrice">输出 / 百万 token</label><div class="money"><span>$</span><input id="outputPrice" type="number" min="0.000001" step="0.01" value="1.20"></div></div>
+<div class="row"><label for="budget">本轮预算 · USD</label><div class="money"><span>$</span><input id="budget" type="number" min="0.000001" max="5" step="0.01" value="5"></div></div>
+<p class="hint">DeepSeek 按你提供的峰谷及缓存价格分项估算，预留按高峰上限计算。实际账单以厂商为准。其他端点请填写保守单价。</p>
+</div></details>
+<div class="actions"><button class="primary" id="btnSave">保存配置</button><button id="btnTest" disabled>测试连接 · 1 次调用</button><button id="btnModels" disabled>读取模型列表</button><button id="btnClear" class="quiet">清除密钥</button></div>
+<p class="status" id="status" role="status" aria-live="polite">填写密钥并保存配置后，即可测试连接。</p>
+</section>
+<section class="budget-strip" aria-label="调用预算"><div><span>已用费用</span><strong id="spent">$0.000000</strong></div><div><span>剩余预算</span><strong id="remaining">$5.000000</strong></div><div><span>本轮真实调用</span><strong id="calls">0 / 2</strong></div><div><span>费用状态</span><strong id="billingState">可核对</strong></div></section>
+<section class="card"><div class="section-top"><h2>研究小任务</h2><span class="caption">第 2 次真实调用</span></div><label class="sr-only" for="prompt">任务说明</label><textarea id="prompt" rows="4" placeholder="输入问卷题干或不含个人信息的研究说明。请勿粘贴行级调查数据。">请判断：一份横截面调查回归的置信区间包含零。它能否支持因果结论？如何准确描述不确定性？请简短回答，不添加数字或文献。</textarea><p class="hint flush">发送范围仅为你在此填写的任务说明；本页面不能读取项目原始数据或代签研究批准。</p><div class="actions"><button class="primary" id="btnRun" disabled>开始分析</button></div><p class="status" id="runStatus" role="status" aria-live="polite">先完成一次连接测试。</p></section>
+<section class="card"><div class="section-top"><h2>模型输出</h2><span id="meta" class="caption">尚未运行</span></div><pre id="out" tabindex="0">运行后的结果会显示在这里。</pre><details><summary>用量与费用记录</summary><pre id="usage">暂无记录。</pre></details></section>
+<footer>本轮上限：1 次连接测试 + 1 次研究小任务，总预算 $5。费用或结果未知时停止新调用；刷新和重启保留本机费用账本。接口连通不代表通过科研能力验收。密钥通过本机服务发送至你保存的厂商端点，不经过第三方中转。</footer>
+</main></body></html>

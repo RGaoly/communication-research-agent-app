@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+/work/
+/research-projects/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.streamlit/secrets.toml
+/.cra-workspaces/

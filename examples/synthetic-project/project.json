@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "created_at": "2026-10-28T02:40:48.993200+00:00",
+  "name": "模拟媒体接触与信任调查",
+  "profile": "apa7",
+  "target": "",
+  "extension": "survey",
+  "synthetic": true,
+  "anonymized": false,
+  "stage": "design",
+  "complete": false,
+  "reviews": {},
+  "audit_head": "ce1c92654ff0fdec94553732327873ddcce6e65fe47726c3fbe11b2760ab29ea"
+}

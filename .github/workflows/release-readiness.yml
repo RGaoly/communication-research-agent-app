@@ -1,0 +1,90 @@
+name: Release readiness engineering
+
+on:
+  push:
+    branches: [main, feat/release-readiness, feat/software-evidence, feat/streamlit-workspace]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readiness-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-wheel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CRA_ISOLATION_TESTS: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Prepare ephemeral Linux isolation environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap
+          # Upstream bubblewrap uses this on its disposable Ubuntu CI runners.
+          # This is not run on a researcher's computer or a production host.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          mkdir -p ci-artifacts
+          bwrap --version > ci-artifacts/bubblewrap-version.txt
+          uname -a > ci-artifacts/kernel.txt
+      - name: Build and install the actual wheel in a fresh environment
+        run: |
+          python -m venv "$RUNNER_TEMP/cra-env"
+          "$RUNNER_TEMP/cra-env/bin/python" -m pip install build
+          "$RUNNER_TEMP/cra-env/bin/python" -m build --wheel --outdir ci-artifacts/dist
+          wheel=("$GITHUB_WORKSPACE"/ci-artifacts/dist/*.whl)
+          "$RUNNER_TEMP/cra-env/bin/python" -m pip install "${wheel[0]}[engine,ui,acceptance,test]"
+          "$RUNNER_TEMP/cra-env/bin/python" -m pip freeze --all > ci-artifacts/environment.txt
+          "$RUNNER_TEMP/cra-env/bin/python" -c 'import cra_engine; assert "site-packages" in cra_engine.__file__, cra_engine.__file__'
+      - name: Run every regression including real OS workers
+        run: |
+          "$RUNNER_TEMP/cra-env/bin/python" -m pytest -q --tb=short --basetemp="$RUNNER_TEMP/cra-pytest" --junitxml=ci-artifacts/software-tests.xml
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('ci-artifacts/software-tests.xml').getroot()
+          suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+          assert sum(int(s.get('tests', '0')) for s in suites) > 0
+          assert all(int(s.get(k, '0')) == 0 for s in suites for k in ('failures', 'errors', 'skipped'))
+          PY
+      - name: Run installed-wheel engineering acceptance outside the source directory
+        working-directory: ${{ runner.temp }}
+        run: |
+          wheel=("$GITHUB_WORKSPACE"/ci-artifacts/dist/*.whl)
+          "$RUNNER_TEMP/cra-env/bin/cra-accept" run --wheel "${wheel[0]}" --output "$RUNNER_TEMP/cra-acceptance" --software-junit "$GITHUB_WORKSPACE/ci-artifacts/software-tests.xml"
+          "$RUNNER_TEMP/cra-env/bin/cra-accept" verify "$RUNNER_TEMP/cra-acceptance"
+      - name: Preserve synthetic worker controls
+        if: always()
+        run: |
+          python - <<'PY'
+          import hashlib, os, shutil
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'cra-pytest'
+          target = Path('ci-artifacts/worker-controls')
+          target.mkdir(parents=True, exist_ok=True)
+          for name in ('response.json', 'specification-progress.json'):
+              for path in source.rglob(name):
+                  if '.cra' in path.parts and 'runs' in path.parts:
+                      ident = hashlib.sha256(str(path.relative_to(source)).encode()).hexdigest()[:16]
+                      shutil.copyfile(path, target / (ident + '-' + name))
+          PY
+      - name: Preserve raw observations even on failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-engineering-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-artifacts/
+            ${{ runner.temp }}/cra-acceptance/
+          include-hidden-files: true
+          retention-days: 7

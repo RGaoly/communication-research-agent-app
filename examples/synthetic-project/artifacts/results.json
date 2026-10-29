@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "data_sha256": "25173fdc0f14d7ab1e587bec1f9094c19b4ff1f6e97ddd91535d8e2858b58d65",
+  "recipe": {
+    "id": "simple-ols-v1",
+    "x": "exposure",
+    "y": "trust",
+    "missing": "complete_case",
+    "se_type": "classical_homoskedastic"
+  },
+  "sample_n": 60,
+  "models": {
+    "m1": {
+      "n": 60,
+      "b": 0.38425665159887024,
+      "intercept": 2.029366605935028,
+      "se": 0.06597859755200036,
+      "t": 5.823959069394014,
+      "r2": 0.36900623401918076
+    }
+  }
+}

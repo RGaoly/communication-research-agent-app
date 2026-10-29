@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "T1",
+      "kind": "table",
+      "path": "artifacts/table.csv",
+      "sha256": "87e2b4e0fcf56b89ef6296e3308545a44bb0193e5c3f0de73065e9ae28832336",
+      "cells": [
+        {
+          "key": "n",
+          "source": "models.m1.n",
+          "decimals": 10
+        },
+        {
+          "key": "b",
+          "source": "models.m1.b",
+          "decimals": 10
+        },
+        {
+          "key": "intercept",
+          "source": "models.m1.intercept",
+          "decimals": 10
+        },
+        {
+          "key": "se",
+          "source": "models.m1.se",
+          "decimals": 10
+        },
+        {
+          "key": "t",
+          "source": "models.m1.t",
+          "decimals": 10
+        },
+        {
+          "key": "r2",
+          "source": "models.m1.r2",
+          "decimals": 10
+        }
+      ]
+    },
+    {
+      "id": "F1",
+      "kind": "figure",
+      "path": "artifacts/figure.svg",
+      "sha256": "0c2a58865363a1a8d3629f6e14ff07981134dd078ca54c2e0945d236ae961a1f",
+      "recipe": "simple-ols-scatter-v1",
+      "model": "m1"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+[project]
+name = "communication-research-agent-tools"
+version = "0.2.0a5.dev2"
+description = "Offline consistency checks and stage gates for communication research"
+requires-python = ">=3.9"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+engine = ["numpy>=1.26,<3", "scipy>=1.12,<2", "pandas>=2.2,<3", "statsmodels>=0.14,<0.15", "python-docx>=1.1,<2", "pypdf>=5,<7", "bibtexparser>=1.4,<2"]
+test = ["pytest>=8,<10"]
+acceptance = ["cryptography>=43,<47"]
+ui = ["streamlit==1.66.1", "pyreadstat>=1.2,<2"]
+
+[project.scripts]
+cra = "cra_engine.cli:main"
+cra-accept = "cra_acceptance.cli:main"
+cra-gui = "cra_engine.gui:main"
+
+[tool.setuptools.package-data]
+cra_engine = ["web/*.html", "web/*.css", "web/*.js"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+"share/communication-research-agent/legacy" = ["skills/communication-research-agent/scripts/cra.py"]
+
+[tool.cra]
+schema-version = 2

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "at": "2026-10-28T02:46:33.046045+00:00",
+  "scope": "submission",
+  "snapshot": "0eb3580fec9e15512fc2f5a20f596dac433439a012604fdb30ba9b2ed7abff7e",
+  "automatic_status": "pass",
+  "overall_status": "needs_human_review",
+  "findings": [],
+  "metrics": {
+    "privacy": {
+      "heuristic_hits": 0,
+      "coverage": "UTF-8 CSV/JSON/MD/TXT/SVG；不含二进制文件、自由文本语义或图像元数据"
+    },
+    "data": {
+      "n_rows": 60,
+      "n_columns": 4,
+      "missing_counts": {
+        "study_id": 0,
+        "exposure": 0,
+        "trust": 0,
+        "group": 0
+      }
+    }
+  },
+  "human_checks": [
+    {
+      "stage": "design",
+      "check": "理论贡献、文献缺口、RQ/H、识别边界、伦理与预注册适用性",
+      "status": "required"
+    },
+    {
+      "stage": "measurement",
+      "check": "题项来源/授权、认知访谈、翻译、信效度及跨组测量等值性",
+      "status": "required"
+    },
+    {
+      "stage": "audit",
+      "check": "样本来源、同意与隐私、排除规则、权重/抽样、数据真实性",
+      "status": "required"
+    },
+    {
+      "stage": "analysis",
+      "check": "模型/标准误/缺失策略适切性、可复现性、稳健性、无选择性报告",
+      "status": "required"
+    },
+    {
+      "stage": "writing",
+      "check": "未标记数字/引用、图表解释、文献真实性、因果边界、语言准确性",
+      "status": "required"
+    },
+    {
+      "stage": "submission",
+      "check": "当期征稿、匿名/元数据、格式、作者贡献、AI披露、共享许可",
+      "status": "required"
+    }
+  ],
+  "limits": "通过仅表示已登记范围的一致性；不证明数据/文献真实、完全匿名或方法正确。未标记的自然语言数字/引用需人工检查。"
+}
