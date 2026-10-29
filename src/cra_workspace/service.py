@@ -467,6 +467,17 @@ class Workspace:
             from cra_engine.isolation import doctor
             from cra_engine.statistics import recipe_identity
             report = {"at": now(), "engine_version": __version__, "recipe": digest(recipe_identity())}
+            import platform
+            report["platform"] = {"system": platform.system(), "kernel": platform.release(), "machine": platform.machine()}
+            if platform.system() == "Linux":
+                import ctypes, ctypes.util, errno
+                report["platform"]["libseccomp_available"] = bool(ctypes.util.find_library("seccomp"))
+                if platform.machine() in ("x86_64", "aarch64", "riscv64"):
+                    libc = ctypes.CDLL(None, use_errno=True)
+                    libc.syscall.restype = ctypes.c_long
+                    abi = libc.syscall(444, ctypes.c_void_p(), ctypes.c_size_t(0), ctypes.c_uint(1))
+                    report["platform"]["landlock_abi"] = abi if abi >= 0 else None
+                    if abi < 0: report["platform"]["landlock_error"] = errno.errorcode.get(ctypes.get_errno(), "UNKNOWN")
             try:
                 result = doctor(store)
                 report.update(passed=True, isolation=result["isolation"], controls=result["result"])

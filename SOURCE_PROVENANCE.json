@@ -1,5 +1,5 @@
 {
-  "source_commit": "bd4590e432e67a8392e45254c3c2804a192e8463",
+  "source_commit": "bcfb22c14fcb8f44f33761c04fb82b14fb9de7c5",
   "scope": "Source, documentation and explicitly synthetic engineering fixtures only; no private repository history or research materials",
   "sha256": {
     ".github/workflows/release-readiness.yml": "bb852c2c9308f70bf706bbbecddcefd72b2106d281bcd7bd7c5965cabd0e16e4",
@@ -80,7 +80,7 @@
     "src/cra_workspace/intake.py": "e81268f88b2f359884ee047662a4415ac7ab8e270f6e60259e54edf602514ece",
     "src/cra_workspace/network.py": "59930459241308b188f040028450c0e9c8f7a80ba5534c30c76b8028bdfa2293",
     "src/cra_workspace/security.py": "5756b57e64fa882387052f1a97361e71a037b3f8254db947e502f556c69b483d",
-    "src/cra_workspace/service.py": "21950f423f698e1d4512f9b813d76dc1e044fb59dc19a9cffb21077f28ddd5b3",
+    "src/cra_workspace/service.py": "be1b57529a761eb26a3b5c8953d8eab5dd7d173cf86b626ff22af5e5baba2d66",
     "streamlit_app.py": "6da52551ffcc16bfbb25828d247e4f139046b66ddcb60e97ad97d807e884513a",
     "tests/acceptance/test_acceptance_tools.py": "721259a44b37840df8efecd3e6a1bad5278171c8fda2709edbf48edc4e5cd133",
     "tests/acceptance/test_gui.py": "02c1ff80ebf7fe0f975c76f52876a2493a4cb66d4d4db48d424dc95233e2743b",
