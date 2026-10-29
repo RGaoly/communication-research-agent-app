@@ -467,6 +467,8 @@ class Workspace:
             from cra_engine.isolation import doctor
             from cra_engine.statistics import recipe_identity
             report = {"at": now(), "engine_version": __version__, "recipe": digest(recipe_identity())}
+            from cra_engine.common import source_fingerprint
+            report.update(engine_source_sha256=source_fingerprint(), workspace_source_sha256=sha(Path(__file__)))
             import platform
             report["platform"] = {"system": platform.system(), "kernel": platform.release(), "machine": platform.machine()}
             if platform.system() == "Linux":

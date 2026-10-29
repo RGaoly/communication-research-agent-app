@@ -1,5 +1,5 @@
 {
-  "source_commit": "bcfb22c14fcb8f44f33761c04fb82b14fb9de7c5",
+  "source_commit": "2dbc209507744e5f0d2c9303d33fd14dac45efae",
   "scope": "Source, documentation and explicitly synthetic engineering fixtures only; no private repository history or research materials",
   "sha256": {
     ".github/workflows/release-readiness.yml": "bb852c2c9308f70bf706bbbecddcefd72b2106d281bcd7bd7c5965cabd0e16e4",
@@ -27,7 +27,7 @@
     "examples/synthetic-project/reports/validation.json": "3614349c18bc957d5612e650c5287f9ed31e7779f2b4bc71798bf972406cb00a",
     "packages.txt": "4cf10deda24162cb25aea09042af48ee0961972ac3fffbb6a9e430ff5348b300",
     "pyproject.toml": "a7460b45eb0ce75289932f720e3ddb84598a14f5be71adb58fddbb5b8693ebf8",
-    "requirements.txt": "4aa35d9b7d7d0fe4a1da83d9402160c28c0d5482b5968a8db782be060abeb4c5",
+    "requirements.txt": "669f4b7a5d7b8c2a228d79e3360061d2c07afe05df4cfad43e7abf370d2bd768",
     "skills/communication-research-agent/SKILL.md": "bbefb6d361a684b2823c0ee8134684724e946a677a69df4d394138adea48612f",
     "skills/communication-research-agent/references/data-analysis.md": "53d9a63fcedcf1845692023ea2ff2e52f513358c100a2fe8973cf2a2c5b6ddad",
     "skills/communication-research-agent/references/engine-v2.md": "b07765b17cd1ccdfdb62c4ef78d9002cd76203aee0c5eb6637dd3d6afebd041c",
@@ -80,7 +80,7 @@
     "src/cra_workspace/intake.py": "e81268f88b2f359884ee047662a4415ac7ab8e270f6e60259e54edf602514ece",
     "src/cra_workspace/network.py": "59930459241308b188f040028450c0e9c8f7a80ba5534c30c76b8028bdfa2293",
     "src/cra_workspace/security.py": "5756b57e64fa882387052f1a97361e71a037b3f8254db947e502f556c69b483d",
-    "src/cra_workspace/service.py": "be1b57529a761eb26a3b5c8953d8eab5dd7d173cf86b626ff22af5e5baba2d66",
+    "src/cra_workspace/service.py": "639a5ef2b629910767bb93484fca72e4f30560e17d978966a63251b43e1f0455",
     "streamlit_app.py": "6da52551ffcc16bfbb25828d247e4f139046b66ddcb60e97ad97d807e884513a",
     "tests/acceptance/test_acceptance_tools.py": "721259a44b37840df8efecd3e6a1bad5278171c8fda2709edbf48edc4e5cd133",
     "tests/acceptance/test_gui.py": "02c1ff80ebf7fe0f975c76f52876a2493a4cb66d4d4db48d424dc95233e2743b",
