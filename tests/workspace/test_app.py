@@ -118,3 +118,75 @@ def test_hot_upgrade_preserves_records_but_waits_for_old_task_and_discards_key(t
     assert s["brief"]["theme"] == "Preserve actual saved input"
     assert s["materials"]["data"][-1]["records"] == 2
     assert not s["has_session_key"] and not s["status"]["approvals"]["authorization"]
+
+
+def test_new_project_navigation_does_not_reselect_the_previous_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "navigation"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    source = Path(__file__).resolve().parents[2] / "streamlit_app.py"
+    app = AppTest.from_file(str(source), default_timeout=15).run()
+    created = []
+    for name in ("Synthetic project A", "Synthetic project B"):
+        next(x for x in app.text_input if x.label == "研究名称").set_value(name)
+        next(x for x in app.text_area if x.label == "你想回答什么问题？").set_value("Synthetic navigation verification")
+        next(x for x in app.checkbox if x.label.startswith("这是工程练习")).check()
+        next(b for b in app.button if b.label == "建立研究项目").click().run()
+        assert not app.exception
+        created.append(app.session_state["project"])
+        next(b for b in app.button if b.label == "＋ 新建 / 恢复研究").click().run()
+        assert not app.exception and app.session_state["project"] is None
+        assert any(x.label == "研究名称" for x in app.text_input)
+    assert len(set(created)) == 2
+    assert len(app.session_state["workspace"].projects()) == 2
+    next(x for x in app.selectbox if x.label == "当前会话的研究").set_value(created[0]).run()
+    assert not app.exception and app.session_state["project"] == created[0]
+    next(x for x in app.selectbox if x.label == "当前会话的研究").set_value(None).run()
+    assert not app.exception and app.session_state["project"] is None
+
+
+def test_advanced_measurement_submits_its_own_review_fields(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "advanced"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    w = app.session_state["workspace"]
+    p = w.create("Synthetic advanced fixture", "Review generated fields", synthetic=True)["project_id"]
+    w.import_data(p, "fixture.csv", b"x,y\n1,2\n2,3\n")
+    book = w.snapshot(p)["codebook"]
+    book["columns"]["x"]["min"] = 0
+    app.session_state["project"] = p
+    app.session_state["route"] = "材料与测量"
+    app.run()
+    next(x for x in app.text_area if x.label == "完整代码本JSON").set_value(json.dumps(book))
+    next(x for x in app.text_input if x.label == "高级代码本实际核查人").set_value("TEST FIXTURE ONLY")
+    next(x for x in app.text_area if x.label == "高级代码本核查依据").set_value("TEST FIXTURE ONLY; known synthetic scale boundaries")
+    next(x for x in app.checkbox if x.label.startswith("我已核查这份高级")).check()
+    next(b for b in app.button if b.label == "采用高级代码本并记录核查声明").click().run()
+    assert not app.exception
+    s = w.snapshot(p)
+    assert s["measurement_reviewed"] and s["codebook"]["columns"]["x"]["min"] == 0
+
+
+def test_key_clear_removes_pending_input_and_keeps_saved_target(tmp_path, monkeypatch):
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "key-clear"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    w = app.session_state["workspace"]
+    p = w.create("Synthetic credential UI fixture", "No network calls", synthetic=True)["project_id"]
+    brief = w.snapshot(p)["brief"]
+    w.save_brief(p, {"permissions": {"model": True, "literature_network": False, "allowed_hosts": ["example.invalid"]}, "model": dict(brief["model"], base_url="https://example.invalid/v1", model="synthetic-model", input_per_million=1, output_per_million=1), "limits": dict(brief["limits"], max_cost=1)})
+    app.session_state["project"] = p
+    app.session_state["route"] = "模型与设置"
+    app.run()
+    next(x for x in app.text_input if x.label == "API Key").set_value("SYNTHETIC-KEY-NEVER-SENT")
+    next(x for x in app.checkbox if x.label.startswith("我同意该密钥")).check()
+    next(b for b in app.button if b.label == "使用此密钥").click().run()
+    assert not app.exception and w.snapshot(p)["has_session_key"]
+    next(x for x in app.text_input if x.label == "API Key").set_value("SYNTHETIC-PENDING-INPUT")
+    next(x for x in app.text_input if x.label == "OpenAI兼容 Base URL").set_value("https://unsaved.invalid/v1")
+    next(b for b in app.button if b.label == "清除密钥并暂停").click().run()
+    assert not app.exception
+    assert next(x for x in app.text_input if x.label == "API Key").value == ""
+    assert not w.snapshot(p)["has_session_key"]
+    assert w.snapshot(p)["brief"]["model"]["base_url"] == "https://example.invalid/v1"
+    assert w.snapshot(p)["status"]["budget"]["calls"] == 0

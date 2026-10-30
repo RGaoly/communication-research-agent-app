@@ -1,5 +1,5 @@
 {
-  "source_commit": "c0aac51237f81e4946783b7ea11c2676ab973983",
+  "source_commit": "b27fbb53848a03ee3a970dcefc57f67de96c49bf",
   "scope": "Source, documentation and explicitly synthetic engineering fixtures only; no private repository history or research materials",
   "sha256": {
     ".github/workflows/release-readiness.yml": "bb852c2c9308f70bf706bbbecddcefd72b2106d281bcd7bd7c5965cabd0e16e4",
@@ -77,7 +77,7 @@
     "src/cra_engine/web/style.css": "c50d579dc03264eade44e641ac29505e7e743d3c81162fc4a49fb130422e17ea",
     "src/cra_engine/worker.py": "f377d06a58e152695bac584045a0ce0b9035470de342cbf95ac631e54c62fdc4",
     "src/cra_workspace/__init__.py": "38f0288e28f300c1ce0e90b08b0e92370b0c5f2fc97d02617a05bf9f33c859ff",
-    "src/cra_workspace/app.py": "ae085a5bc6c97754197fc77d720a71a8178448eb88d4d205c20971c6d91b09e7",
+    "src/cra_workspace/app.py": "85e172fc01a04b5fdca303b49a27f74817d3092086ea7bbd45fd7f7afd4f2c76",
     "src/cra_workspace/environment.py": "f988671666cbb969413631f774c6920ae106849b112fae3735fcb42f597b6ded",
     "src/cra_workspace/intake.py": "e81268f88b2f359884ee047662a4415ac7ab8e270f6e60259e54edf602514ece",
     "src/cra_workspace/network.py": "59930459241308b188f040028450c0e9c8f7a80ba5534c30c76b8028bdfa2293",
@@ -97,7 +97,7 @@
     "tests/engine/test_specification_progress.py": "a3e7090b17b84a97982f0d503508067a51dc0985abb21313f20f9985465451fa",
     "tests/engine/test_statistics.py": "1d2123686cecd38a4686c89157bcacdab2351cad68be7a7137b6ebc9cc302954",
     "tests/test_cra.py": "19a6bf71aecd8816297274d8a0252a696cd48e05aa7c7077a45551ef7944211f",
-    "tests/workspace/test_app.py": "5cc69a613f2b4823651cea7e5075576445c2d83c751de77a5e75ea252ebff298",
+    "tests/workspace/test_app.py": "91be7feb14f4eb7c777ef0f27dc5a01f69b8e5d93ecdf955f570a0f53d1be849",
     "tests/workspace/test_network.py": "22e5cf345544f1d1e8fa22b643603e9012f494fd8f735b6f03cf519474543354",
     "tests/workspace/test_workspace.py": "01c2d7d57213f2a32bc242777bb9dc5cfb6cd86e3eb6bb473be53e874fe6675d",
     "启动研究工作台.command": "da7536dc8018114ee1cec09f01392e037e915ef4191fd9bf47a6651f1eb3df36"

@@ -64,12 +64,16 @@ def value(s, name):
     return obj["value"] if obj and not obj["stale"] else None
 
 
+def literal(text):
+    return "".join("\\" + c if c in "\\`*_{}[]()#+-.!<>" else c for c in str(text))
+
+
 def manuscript(text):
     # Research prose is untrusted. Plain paragraphs prevent model-supplied image
     # URLs/HTML from making browser requests to unapproved third parties.
     for paragraph in text.split("\n\n"):
         if paragraph.startswith("## ") and "\n" not in paragraph:
-            st.subheader(paragraph[3:].replace("[", "\\[").replace("!", "\\!"))
+            st.subheader(literal(paragraph[3:]))
         else:
             st.text(paragraph)
 
@@ -101,6 +105,12 @@ def upload_consent(key, description):
 
 def dismiss_review():
     st.session_state.pop("pending_review", None)
+
+
+def choose_project():
+    st.session_state.project = st.session_state.project_picker
+    st.session_state.pop("pending_review", None)
+    if st.session_state.project is None: st.session_state.route = PAGES[0]
 
 
 @st.dialog("审阅并确认当前版本", width="large", on_dismiss=dismiss_review)
@@ -157,7 +167,7 @@ def home(w):
     if submitted:
         result = act(lambda: w.create(name, question, objective or question, synthetic), "已建立真实项目记录；尚未授权执行。")
         if result:
-            st.session_state.project = result["project_id"]
+            st.session_state.next_project = result["project_id"]
             st.session_state.next_route = PAGES[0]
             st.rerun()
     st.subheader("恢复已有项目")
@@ -168,12 +178,12 @@ def home(w):
         if st.button("导入并验证备份", disabled=recovery is None):
             result = act(lambda: w.restore(recovery.getvalue(), cloud_consent=consent), "已恢复到新项目，既有项目未被覆盖。")
             if result:
-                st.session_state.project = result["project_id"]
+                st.session_state.next_project = result["project_id"]
                 st.rerun()
 
 
 def overview(w, p, s):
-    st.title(s["brief"]["name"])
+    st.title(literal(s["brief"]["name"]))
     st.text(s["brief"]["theme"])
     budget, state = s["status"]["budget"], s["status"]
     row = st.columns(4)
@@ -219,7 +229,7 @@ def materials(w, p, s):
             if act(lambda: w.import_data(p, uploaded.name, uploaded.getvalue(), cloud_consent=consent), "已保留原件并生成分析副本；请继续核查测量。"): st.rerun()
     if not s["files_ready"]: return
     data = s["materials"]["data"][-1]
-    st.caption("实际接入：" + data["name"] + " · " + str(data["records"]) + "条记录 · SHA256 " + data["sha256"][:16])
+    st.text("实际接入：" + data["name"] + " · " + str(data["records"]) + "条记录 · SHA256 " + data["sha256"][:16])
     st.subheader("题项与编码核查")
     st.warning("观测最小值与最大值不是问卷量尺。请依据题干修正量尺，明确拒答/不知道等编码，排除身份字段；不会自动删除样本。")
     book = s["codebook"]
@@ -249,12 +259,17 @@ def materials(w, p, s):
         if act(commit, "已保存新的分析副本与测量声明；受影响的旧结果会失效。"): st.rerun()
     with st.expander("高级测量代码本（量表、分组、权重与设计信息）"):
         st.caption("修改完整JSON后仍须由你核查。复杂抽样、潜变量跨国比较缺乏支持时会阻断分析。")
-        raw = st.text_area("完整代码本JSON", json.dumps(book, ensure_ascii=False, indent=2), height=300, key="book_json_" + p)
-        missing_raw = st.text_area("缺失映射JSON", "{}", key="book_missing_" + p)
-        if st.button("采用高级代码本并记录上述核查声明", disabled=s["running"]):
-            if confirmed:
-                if act(lambda: w.measurement(p, json.loads(raw), json.loads(missing_raw), reviewer, note)): st.rerun()
-            else: st.error("请先填写核查人与依据并勾选实际核查声明。")
+        with st.form("advanced_measurement_" + p):
+            raw = st.text_area("完整代码本JSON", json.dumps(book, ensure_ascii=False, indent=2), height=300, key="book_json_" + p)
+            missing_raw = st.text_area("缺失映射JSON", "{}", key="book_missing_" + p)
+            advanced_reviewer = st.text_input("高级代码本实际核查人")
+            advanced_note = st.text_area("高级代码本核查依据")
+            advanced_confirmed = st.checkbox("我已核查这份高级代码本及其缺失、量表与设计规则。")
+            advanced_submit = st.form_submit_button("采用高级代码本并记录核查声明", disabled=s["running"])
+        if advanced_submit:
+            if advanced_confirmed:
+                if act(lambda: w.measurement(p, json.loads(raw), json.loads(missing_raw), advanced_reviewer, advanced_note)): st.rerun()
+            else: st.error("请先核查这份高级代码本并确认。")
     st.subheader("实际审计产物")
     object_view(s, "audit")
 
@@ -437,6 +452,8 @@ def deliver(w, p, s):
 
 def settings(w, p, s):
     st.title("模型与设置")
+    key_field = "api_key_input_" + p
+    if st.session_state.pop("clear_api_key_input_" + p, False): st.session_state[key_field] = ""
     with st.expander("运行环境检查（不调用模型）", expanded=s["environment"] is not None and not s["environment"]["passed"]):
         st.caption("实际检查统计进程的网络隔离、越界写入和控制状态读取；安装了依赖不代表托管平台允许隔离。")
         if st.button("执行环境自检", disabled=s["running"]):
@@ -486,19 +503,23 @@ def settings(w, p, s):
             return w.save_brief(p, {"language": lang, "model": revised_model, "permissions": permissions, "limits": dict(brief["limits"], max_cost=budget, currency=currency, max_seconds=int(seconds), min_cell=int(mincell)), "profile": {"name": profile_name, "target": target, "sources": sources}})
         if act(commit, "设置已保存。权限或预算变化后，需在研究概览重新审阅项目授权。"): st.rerun()
     st.subheader("本次会话密钥")
+    st.text("当前生效配置：" + (brief["model"]["model"] + " · " + brief["model"]["base_url"] if brief["permissions"]["model"] else "离线，尚未启用模型服务"))
+    st.caption("连接和研究请求只使用已保存配置。修改上方字段后，请先保存，再填写对应厂商的密钥。")
     st.write("状态：", "当前配置的密钥已填入内存" if s["has_session_key"] else "尚未填写或已失效")
     # clear_on_submit removes the password widget value after it has been handed
     # to the short-lived vault; never place it in a cached global/environment.
     with st.form("key_" + p, clear_on_submit=True):
-        key = st.text_input("API Key", type="password", autocomplete="new-password")
-        key_consent = st.checkbox("我同意该密钥仅在当前服务会话内存中用于本项目，并向已配置厂商发送获批摘要与片段。")
+        key = st.text_input("API Key", type="password", autocomplete="new-password", key=key_field)
+        key_consent = st.checkbox("我同意该密钥仅在当前会话中用于本项目，并向已保存端点 " + (brief["model"]["base_url"] or "（尚未设置）") + " 发送获批内容。")
         key_submit = st.form_submit_button("使用此密钥", disabled=s["running"])
     if key_submit:
         if not key_consent: st.error("请先确认本次密钥使用范围。")
         elif act(lambda: w.set_key(p, key), "密钥已留在当前会话内存；未发起模型调用。"): st.rerun()
     a, b = st.columns(2)
     if a.button("清除密钥并暂停", width="stretch"):
-        if act(lambda: w.clear_key(p), "已清除会话密钥并请求暂停；已发出的请求仍需核对。"): st.rerun()
+        if act(lambda: w.clear_key(p), "已清除会话密钥并请求暂停；已发出的请求仍需核对。"):
+            st.session_state["clear_api_key_input_" + p] = True
+            st.rerun()
     if b.button("验证模型契约 · 两次付费请求", disabled=s["running"] or not s["has_session_key"], width="stretch"):
         if act(lambda: w.start(p, model_test=True), "已在项目授权预算内启动两次接口契约请求；不等于科研能力盲测。"): st.rerun()
     st.subheader("费用与待核对请求")
@@ -522,12 +543,17 @@ def main():
     stylesheet()
     if "next_route" in st.session_state:
         st.session_state.route = st.session_state.pop("next_route")
+    if "next_project" in st.session_state:
+        st.session_state.project = st.session_state.pop("next_project")
+        st.session_state.project_picker = st.session_state.project
     previous = st.session_state.get("workspace")
     if previous is not None and not isinstance(previous, Workspace):
         # A live Streamlit code update can retain an instance of the previous
         # class. Keep its project namespace, never its credential/review vault.
         for folder in previous.directory.iterdir():
             if folder.is_dir(): previous.credentials.clear(folder.name)
+        for key in list(st.session_state):
+            if key.startswith("api_key_input_"): st.session_state[key] = ""
         active = [(p, thread) for p, thread in previous._threads.items() if thread.is_alive()]
         if active:
             if st.session_state.get("upgrade_pause_requested") != id(previous):
@@ -565,17 +591,20 @@ def main():
         st.caption("开发预览 · 云端处理" if w.deployment == "cloud" else "开发预览 · 本机处理")
         st.caption("尚未完成独立真人、真实模型盲测和真实项目发布验收。")
         if st.button("＋ 新建 / 恢复研究", width="stretch"):
-            st.session_state.pop("project", None)
+            st.session_state.project = None
+            st.session_state.project_picker = None
+            st.session_state.route = PAGES[0]
+            st.session_state.pop("pending_review", None)
             st.rerun()
         projects = w.projects()
         if projects:
             ids = [x["project_id"] for x in projects]
             current = st.session_state.get("project")
             options = [None] + ids
-            selected = st.selectbox("当前会话的研究", options, index=options.index(current) if current in options else 0, format_func=lambda x: "选择研究" if x is None else next(r["name"] for r in projects if r["project_id"] == x))
-            if selected != current:
-                st.session_state.project = selected
-                st.rerun()
+            if current not in ids: st.session_state.project = current = None
+            st.session_state.project_picker = current
+            st.selectbox("当前会话的研究", options, index=None, placeholder="选择研究", key="project_picker", on_change=choose_project,
+                         format_func=lambda x: "选择研究" if x is None else next(r["name"] for r in projects if r["project_id"] == x))
         route = st.radio("研究工作区", PAGES, key="route", label_visibility="collapsed")
         st.divider()
         st.caption("材料不会自动发布到GitHub。" + ("云端空间和浏览器会话可能回收，请及时下载私有恢复备份。会话丢失后可重新导入备份。" if w.deployment == "cloud" else "研究保存在本机研究库，重新打开仍可选择；密钥按浏览器会话隔离，需要重新填写。请定期备份。"))
