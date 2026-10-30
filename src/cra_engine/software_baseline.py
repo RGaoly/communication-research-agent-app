@@ -1,7 +1,7 @@
 """Frozen release regression identities, not proof that tests actually ran.
 
 Base: 180 cases at f9d1a225 plus 11 software-evidence negative controls, then
-seven UI upload/export/recovery/settings/plan/run-gate/narrative/reproduction cases added at later candidate freezes.
+eight UI upload/export/recovery/settings/plan/run-gate/narrative/reproduction/billing cases added at later candidate freezes.
 Independent operator still verifies invocation, source origin and actual execution.
 Update only at candidate freeze; no existing identity may silently disappear.
 """
@@ -204,4 +204,5 @@ CASES = (
     ('tests.workspace.test_app', 'test_ui_run_button_calls_backend_and_refuses_without_current_authorization'),
     ('tests.workspace.test_app', 'test_ui_narrative_form_persists_evidence_anchored_text_without_model_call'),
     ('tests.workspace.test_app', 'test_ui_reproduction_button_reexecutes_real_synthetic_analysis'),
+    ('tests.workspace.test_app', 'test_ui_billing_reconciliation_requires_confirmation_and_settles_uncertain_call'),
 )

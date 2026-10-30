@@ -547,6 +547,45 @@ def test_ui_reproduction_button_reexecutes_real_synthetic_analysis(tmp_path, mon
     assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
 
 
+def test_ui_billing_reconciliation_requires_confirmation_and_settles_uncertain_call(tmp_path, monkeypatch):
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-billing"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    workspace = app.session_state["workspace"]
+    project = workspace.create("Synthetic billing reconciliation", "Check billing UI persistence", synthetic=True)["project_id"]
+    brief = workspace.snapshot(project)["brief"]
+    revised_brief = dict(brief, limits=dict(brief["limits"], max_cost=1.0, currency="USD"))
+    workspace.save_brief(project, {"limits": revised_brief["limits"]})
+    with workspace._store(project) as store:
+        store.put("brief", "research_brief", revised_brief)
+        call_id = store.reserve("synthetic_contract", 0.5, "synthetic-model")
+        store.settle(call_id, None, {"request_unknown": True}, uncertain=True)
+
+    app.session_state["project"] = project
+    app.session_state["route"] = "模型与设置"
+    app.run()
+    assert not app.exception
+    assert len(app.selectbox) >= 1
+    actual = next(x for x in app.number_input if x.label == "已从厂商账单核对的实际费用")
+    note = next(x for x in app.text_area if x.label == "实际账单核对依据")
+    actual.set_value(0.123456)
+    note.set_value("Synthetic provider invoice fixture; exact total independently recorded.")
+    next(b for b in app.button if b.label == "登记核对结果").click().run()
+    assert any("请根据实际账单核对" in x.value for x in app.error)
+    assert workspace.snapshot(project)["status"]["budget"]["uncertain"] == 1
+
+    next(x for x in app.checkbox if x.label.startswith("我已核对结果与费用")).check()
+    next(b for b in app.button if b.label == "登记核对结果").click().run()
+    assert not app.exception and not app.error
+    budget = workspace.snapshot(project)["status"]["budget"]
+    assert budget["uncertain"] == 0
+    assert budget["reserved"] == 0
+    assert budget["spent"] == 0.123456
+    with workspace._store(project) as store:
+        row = store.db.execute("SELECT status,actual FROM calls WHERE id=?", (call_id,)).fetchone()
+        assert (row["status"], row["actual"]) == ("settled", 0.123456)
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 
