@@ -35,6 +35,12 @@ def test_native_form_creates_persisted_project_and_all_pages_render(tmp_path, mo
     app.radio[0].set_value("研究概览").run()
     next(b for b in app.button if b.label == "项目授权 · 待确认").click().run()
     assert not app.exception
+    next(b for b in app.button if b.label == "暂不确认，返回检查材料").click().run()
+    assert not app.exception
+    assert not workspace.snapshot(p)["status"]["approvals"]["authorization"]
+    assert "pending_review" not in app.session_state
+    next(b for b in app.button if b.label == "项目授权 · 待确认").click().run()
+    assert not app.exception
     next(x for x in app.text_input if x.label == "实际审阅者姓名或项目代号").set_value("TEST FIXTURE ONLY")
     next(x for x in app.text_area if x.label == "审阅依据与判断（至少8个字符）").set_value("TEST FIXTURE ONLY; no actual research authorization")
     challenge = next(x.value for x in app.code if x.value.startswith("APPROVE "))
@@ -398,6 +404,15 @@ def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_pa
     assert references[0]["spans"][0]["id"] == "synthetic_span"
     assert references[0]["spans"][0]["status"] == "supported"
 
+    import json
+    replacement = dict(references[0], title="Updated synthetic source fixture")
+    next(x for x in app.text_area if x.label == "单条题录JSON").set_value(json.dumps(replacement, ensure_ascii=False))
+    next(b for b in app.button if b.label == "校验并替换同ID题录").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    replaced = workspace.references(project)
+    assert len(replaced) == 1 and replaced[0]["title"] == "Updated synthetic source fixture"
+    assert replaced[0]["spans"][0]["id"] == "synthetic_span"
+
     app.radio[0].set_value("研究计划").run()
     next(x for x in app.text_area if x.label == "正式研究问题").set_value("Among generated cases, how is x associated with y?")
     next(x for x in app.text_area if x.label == "理论贡献或拟检验的理论张力").set_value("Synthetic relationship used only to exercise the planning form.")
@@ -416,6 +431,20 @@ def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_pa
     assert protocol["models"][0]["x"] == ["x"]
     assert protocol["theory"]["evidence_ids"] == ["synthetic_span"]
     assert not snapshot["status"]["approvals"]["protocol"]
+
+    complete_plan = dict(protocol)
+    complete_plan["candidates"] = [{
+        "rq": "Synthetic robustness candidate",
+        "theory_tension": "Fixture only; compare a predeclared alternative explanation.",
+        "measurement": "Use the same generated x and y fields.",
+        "boundary": "This alternative remains exploratory and makes no population claim.",
+    }]
+    next(x for x in app.text_area if x.label == "完整计划JSON").set_value(json.dumps(complete_plan, ensure_ascii=False))
+    next(b for b in app.button if b.label == "校验并保存完整计划").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    saved_complete = workspace.snapshot(project)["protocol_source"]
+    assert saved_complete["candidates"][0]["rq"] == "Synthetic robustness candidate"
+    assert not workspace.snapshot(project)["status"]["approvals"]["protocol"]
 
 
 def test_ui_run_button_calls_backend_and_refuses_without_current_authorization(tmp_path, monkeypatch):
@@ -443,6 +472,68 @@ def test_ui_run_button_calls_backend_and_refuses_without_current_authorization(t
     assert not snapshot["running"]
     assert snapshot["status"]["budget"]["calls"] == 0
     assert not snapshot["status"]["approvals"]["authorization"]
+
+
+def test_ui_start_and_safe_pause_control_persisted_background_job(tmp_path, monkeypatch):
+    """Exercise the real Workspace thread lifecycle behind the visible controls.
+
+    The runner is a controlled test double that waits for the persisted pause
+    flag. It does not execute analysis, call a model, or create human evidence.
+    """
+    import threading
+    import time
+    from cra_workspace import service as service_module
+
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-pause-resume"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    started = threading.Event()
+    observed_pause = threading.Event()
+
+    def controlled_run(store):
+        started.set()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if store.meta("paused"):
+                observed_pause.set()
+                return {"state": "cancelled"}
+            time.sleep(0.01)
+        raise AssertionError("UI pause request did not reach the persisted worker state")
+
+    monkeypatch.setattr(service_module, "run", controlled_run)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    workspace = app.session_state["workspace"]
+    project = workspace.create("Synthetic start/pause control", "Check persisted worker controls", synthetic=True)["project_id"]
+    workspace.import_data(project, "fixture.csv", b"x,y\n1,2\n2,3\n")
+    with workspace._store(project) as store:
+        # A test-only synthetic approval opens the start gate. This is not
+        # counted as a human review or acceptance record.
+        snapshot = store.snapshot("authorization")
+        store.approve("authorization", "TEST FIXTURE ONLY", "Synthetic worker lifecycle fixture only.", "APPROVE " + snapshot[:12])
+
+    app.session_state["project"] = project
+    app.session_state["route"] = "研究概览"
+    app.run()
+    start = next(b for b in app.button if b.label == "继续执行获批研究")
+    assert not start.disabled
+    start.click().run()
+    assert not app.exception
+    assert started.wait(5), "the UI start button did not launch the workspace worker"
+    assert workspace.running(project)
+
+    pause = next(b for b in app.button if b.label == "安全暂停")
+    assert not pause.disabled
+    pause.click().run()
+    assert not app.exception
+    assert observed_pause.wait(5), "the UI pause button did not stop scheduling in the worker"
+    worker = workspace._threads[project]
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    app.run()
+    assert not app.exception
+    snapshot = workspace.snapshot(project)
+    assert snapshot["status"]["paused"] is True
+    assert snapshot["job"]["state"] == "stopped"
+    assert snapshot["status"]["budget"]["calls"] == 0
 
 
 def test_ui_narrative_form_persists_evidence_anchored_text_without_model_call(tmp_path, monkeypatch):
@@ -602,13 +693,15 @@ def test_settings_button_shows_remote_health_when_current_local_isolation_fails(
     monkeypatch.setattr(app_module, "operator_executor", lambda: remote)
     monkeypatch.setattr(environment, "inspect_environment", lambda store: {
         "passed": False, "message": "SYNTHETIC local sandbox unavailable"})
+    app_module.hosting_environment.clear()
     monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "remote-health-ui"))
     monkeypatch.setenv("CRA_DEPLOYMENT", "local")
     source = Path(__file__).resolve().parents[2] / "streamlit_app.py"
     app = AppTest.from_file(str(source), default_timeout=15).run()
     workspace = app.session_state["workspace"]
-    p = workspace.create("Synthetic remote health UI", "No research data is transferred", synthetic=True)["project_id"]
-    app.session_state["project"] = p
+    project = workspace.create("Synthetic remote health UI", "No research data is transferred", synthetic=True)["project_id"]
+    workspace.remote_executor = remote
+    app.session_state["project"] = project
     app.session_state["route"] = "模型与设置"
     app.run()
     next(b for b in app.button if b.label == "执行环境自检").click().run()
@@ -617,4 +710,4 @@ def test_settings_button_shows_remote_health_when_current_local_isolation_fails(
     assert remote.calls == 1
     assert any("独立服务器健康检查通过" in item.value for item in app.warning)
     assert any("没有上传材料" in item.value for item in app.warning)
-    assert workspace.snapshot(p)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
+    assert workspace.snapshot(project)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
