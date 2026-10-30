@@ -490,7 +490,7 @@ def settings(w, p, s):
     key_field = "api_key_input_" + p
     if st.session_state.pop("clear_api_key_input_" + p, False): st.session_state[key_field] = ""
     with st.expander("运行环境检查（不调用模型）", expanded=s["environment"] is not None and not s["environment"]["passed"]):
-        st.caption("实际检查统计进程的网络隔离、越界写入和控制状态读取；安装了依赖不代表托管平台允许隔离。")
+        st.caption("检查当前项目选择的执行位置及已配置的独立服务器；不调用模型、不上传研究材料。安装了依赖不代表托管平台允许隔离。")
         if st.button("执行环境自检", disabled=s["running"]):
             if act(lambda: w.check_environment(p), "环境检查已完成，请查看实际结果。"):
                 hosting_environment.clear()
@@ -498,6 +498,11 @@ def settings(w, p, s):
         if s["environment"]:
             if not s["environment"]["passed"]: st.error(s["environment"]["message"])
             st.json(s["environment"])
+            remote_check = s["environment"].get("remote_worker_check")
+            if remote_check and remote_check.get("passed"):
+                st.success("已配置的独立服务器隔离自检通过。当前项目仍使用工作台所在机器；切换前不会上传本项目材料。")
+            elif remote_check:
+                st.error(remote_check.get("message", "独立服务器检查未通过；没有发送研究材料。"))
     st.caption("保存配置不会自动发起模型请求，也不等于研究授权。模型密钥只留在此会话的服务进程内存；配置变化、到期、清除或终审后失效。")
     brief = s["brief"]
     with st.form("settings_" + p):

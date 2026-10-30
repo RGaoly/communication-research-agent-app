@@ -238,6 +238,53 @@ def test_bad_evidence_never_saved(workspace):
     assert workspace.references(p)[0]["spans"][0]["quote"] == QUOTE
 
 
+def test_environment_check_reports_configured_remote_worker_without_changing_project_scope(workspace, monkeypatch):
+    from cra_workspace import environment
+
+    class RemoteFixture:
+        endpoint = "https://worker.example.invalid"
+        def __init__(self): self.calls = 0
+        def health(self):
+            self.calls += 1
+            return {"passed": True, "isolation": "linux-bubblewrap", "controls": {
+                "network_denied": True, "write_denied": True, "control_read_denied": True},
+                "identity": {"protocol": 1, "recipe": "SYNTHETIC"}}
+
+    remote = RemoteFixture()
+    workspace.remote_executor = remote
+    monkeypatch.setattr(environment, "inspect_environment", lambda store: {
+        "passed": False, "message": "SYNTHETIC local sandbox unavailable"})
+    p = workspace.create("Synthetic worker health fixture", "No research data is transferred", synthetic=True)["project_id"]
+
+    report = workspace.check_environment(p)
+
+    assert report["passed"] is False
+    assert report["remote_worker_check"]["passed"] is True
+    assert report["remote_worker_check"]["isolation"] == "linux-bubblewrap"
+    assert remote.calls == 1
+    assert workspace.snapshot(p)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
+
+
+def test_environment_check_reports_remote_failure_without_sending_project_data(workspace, monkeypatch):
+    from cra_engine.common import EngineError
+    from cra_workspace import environment
+
+    class RemoteFixture:
+        endpoint = "https://worker.example.invalid"
+        def health(self): raise EngineError("SYNTHETIC health failure")
+
+    workspace.remote_executor = RemoteFixture()
+    monkeypatch.setattr(environment, "inspect_environment", lambda store: {
+        "passed": False, "message": "SYNTHETIC local sandbox unavailable"})
+    p = workspace.create("Synthetic failed worker fixture", "No research data is transferred", synthetic=True)["project_id"]
+
+    report = workspace.check_environment(p)
+
+    assert report["remote_worker_check"]["passed"] is False
+    assert "没有发送研究材料" in report["remote_worker_check"]["message"]
+    assert workspace.snapshot(p)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
+
+
 @pytest.mark.skipif(os.environ.get("CRA_ISOLATION_TESTS") != "1", reason="Explicit real OS isolation integration opt-in")
 def test_real_worker_end_to_end_and_export(workspace):
     p = prepare(workspace)

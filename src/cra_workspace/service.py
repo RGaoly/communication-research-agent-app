@@ -509,11 +509,31 @@ class Workspace:
             return reproduce(store)
 
     def check_environment(self, project):
-        """An actual non-billing isolation probe, not an availability guess."""
+        """Probe the selected execution backend and any configured remote worker."""
         with self._lock, self._store(project) as store:
             self._editable(project)
             from .environment import inspect_environment
             report = inspect_environment(store)
+            if self.remote_executor is not None and not report.get("worker"):
+                # The project's current backend is local, so inspect_environment
+                # intentionally checks the local sandbox. Also report whether a
+                # configured remote worker is independently usable, without
+                # sending project files or changing the project's execution scope.
+                try:
+                    worker = self.remote_executor.health()
+                    report["remote_worker_check"] = {
+                        "passed": True,
+                        "endpoint": self.remote_executor.endpoint,
+                        "isolation": worker.get("isolation"),
+                        "controls": worker.get("controls"),
+                        "identity": worker.get("identity"),
+                    }
+                except (EngineError, OSError):
+                    report["remote_worker_check"] = {
+                        "passed": False,
+                        "endpoint": self.remote_executor.endpoint,
+                        "message": "独立服务器连接或隔离检查未通过；没有发送研究材料。",
+                    }
             with store.tx():
                 store.set_meta("workspace_environment", report)
                 store.event("workspace_environment_checked", report)

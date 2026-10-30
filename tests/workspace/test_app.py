@@ -190,3 +190,36 @@ def test_key_clear_removes_pending_input_and_keeps_saved_target(tmp_path, monkey
     assert not w.snapshot(p)["has_session_key"]
     assert w.snapshot(p)["brief"]["model"]["base_url"] == "https://example.invalid/v1"
     assert w.snapshot(p)["status"]["budget"]["calls"] == 0
+
+
+def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
+    from cra_workspace import app as app_module, environment
+
+    class RemoteFixture:
+        endpoint = "https://worker.example.invalid"
+        def __init__(self): self.calls = 0
+        def health(self):
+            self.calls += 1
+            return {"passed": True, "isolation": "linux-bubblewrap", "controls": {
+                "network_denied": True, "write_denied": True, "control_read_denied": True},
+                "identity": {"protocol": 1, "recipe": "SYNTHETIC"}}
+
+    remote = RemoteFixture()
+    monkeypatch.setattr(app_module, "operator_executor", lambda: remote)
+    monkeypatch.setattr(environment, "inspect_environment", lambda store: {
+        "passed": False, "message": "SYNTHETIC local sandbox unavailable"})
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "remote-health-ui"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    source = Path(__file__).resolve().parents[2] / "streamlit_app.py"
+    app = AppTest.from_file(str(source), default_timeout=15).run()
+    workspace = app.session_state["workspace"]
+    p = workspace.create("Synthetic remote health UI", "No research data is transferred", synthetic=True)["project_id"]
+    app.session_state["project"] = p
+    app.session_state["route"] = "模型与设置"
+    app.run()
+    next(b for b in app.button if b.label == "执行环境自检").click().run()
+
+    assert not app.exception
+    assert remote.calls == 1
+    assert any("独立服务器隔离自检通过" in item.value for item in app.success)
+    assert workspace.snapshot(p)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
