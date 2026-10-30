@@ -248,6 +248,32 @@ def test_failed_thread_start_releases_supervisor_lease(workspace, monkeypatch):
     assert workspace.snapshot(p)["job"]["state"] == "failed"
 
 
+def test_reproduction_is_visible_to_other_sessions_and_releases_after_failure(workspace, monkeypatch):
+    from cra_engine import cli
+    p = workspace.create("Synthetic reproduction concurrency", "Protect reproduction inputs", synthetic=True)["project_id"]
+    other = Workspace(workspace.directory.parent, owner=workspace.directory.name)
+    for fail in (False, True):
+        def controlled_reproduction(store):
+            assert other.running(p)
+            with pytest.raises(EngineError, match="正在执行"):
+                other.save_brief(p, {"theme": "Must not change during reproduction"})
+            assert other.snapshot(p)["brief"]["theme"] == "Protect reproduction inputs"
+            if fail:
+                raise EngineError("SYNTHETIC reproduction failure")
+            return {"passed": True}
+        monkeypatch.setattr(cli, "reproduce", controlled_reproduction)
+        if fail:
+            with pytest.raises(EngineError, match="SYNTHETIC reproduction failure"):
+                workspace.reproduce(p)
+        else:
+            assert workspace.reproduce(p) == {"passed": True}
+        assert not other.running(p)
+        with workspace._store(p) as store:
+            assert not store.db.execute("SELECT 1 FROM leases").fetchone()
+    other.save_brief(p, {"objective": "Editing is available after reproduction stops"})
+    assert workspace.snapshot(p)["brief"]["objective"] == "Editing is available after reproduction stops"
+
+
 def test_bad_evidence_never_saved(workspace):
     p = prepare(workspace)
     reference = workspace.references(p)[0]

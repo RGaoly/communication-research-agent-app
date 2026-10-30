@@ -533,9 +533,19 @@ class Workspace:
 
     def reproduce(self, project):
         with self._lock, self._store(project) as store:
-            self._editable(project)
             from cra_engine.cli import reproduce
-            return reproduce(store)
+            import os
+            owner = uuid.uuid4().hex
+            with store.tx():
+                self._editable(project)
+                store.db.execute("INSERT OR REPLACE INTO leases VALUES ('workspace',?,?,?)", (owner, os.getpid(), now()))
+                store.event("workspace_reproduction_started", {})
+            try:
+                return reproduce(store)
+            finally:
+                with store.tx():
+                    store.db.execute("DELETE FROM leases WHERE name='workspace' AND owner=?", (owner,))
+                    store.event("workspace_reproduction_stopped", {})
 
     def check_environment(self, project):
         """Probe the selected execution backend and any configured remote worker."""
