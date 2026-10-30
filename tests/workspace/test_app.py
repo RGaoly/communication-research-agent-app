@@ -445,6 +445,56 @@ def test_ui_run_button_calls_backend_and_refuses_without_current_authorization(t
     assert not snapshot["status"]["approvals"]["authorization"]
 
 
+def test_ui_narrative_form_persists_evidence_anchored_text_without_model_call(tmp_path, monkeypatch):
+    from cra_engine.literature import build_corpus
+    from cra_engine.runtime import sync
+
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-narrative"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    workspace = app.session_state["workspace"]
+    project = workspace.create("Synthetic narrative UI", "Verify evidence-bound manuscript input", synthetic=True)["project_id"]
+    workspace.import_data(project, "fixture.csv", b"x,y\n1,2\n2,3\n3,4\n")
+    source_text = b"Synthetic excerpt: generated respondents describe a perceived foreign attitude.\n\nThis is a fabricated source fixture."
+    source = workspace.upload_literature(project, "fixture.md", source_text)
+    workspace.save_reference(project, {
+        "id": "synthetic_ref", "title": "Synthetic citation fixture", "authors": ["Example Author"],
+        "year": "2026", "source": "Synthetic Journal", "url": "https://example.invalid/source", "doi": "",
+        "metadata_declaration": {"reviewer": "TEST FIXTURE ONLY", "note": "Synthetic fixture metadata only."},
+        "spans": [{"id": "synthetic_span", "path": source["path"], "locator": {"paragraph": 1},
+                   "quote": "generated respondents describe a perceived foreign attitude", "claim": "Perceived foreign attitude",
+                   "status": "supported", "reviewer": "TEST FIXTURE ONLY", "note": "Synthetic fixture only; no real literature checked.",
+                   "permitted_for_model": False}],
+    })
+    with workspace._store(project) as store:
+        brief = sync(store)
+        corpus = build_corpus(store.root, brief)
+        with store.tx():
+            store.put("corpus", "corpus", corpus)
+            store.put("claims", "claims", {"schema_version": 2, "analysis_hash": "SYNTHETIC", "items": [
+                {"id": "main_n", "kind": "statistic", "source": "analysis", "model": "main", "field": "n", "value": 3, "text": "Synthetic N"}
+            ]})
+    app.session_state["project"] = project
+    app.session_state["route"] = "稿件与交付"
+    app.run()
+    assert not app.exception
+    narrative = {
+        "introduction": "This synthetic introduction is anchored to [[cite:synthetic_ref]].",
+        "theory": "This synthetic theory note cites [[cite:synthetic_ref]].",
+        "discussion": "The generated sample size is {{claim:main_n}}.",
+        "limitations": "This fixture contains no real respondents or population-level evidence.",
+    }
+    for label, value in (("引言", narrative["introduction"]), ("理论", narrative["theory"]),
+                         ("讨论", narrative["discussion"]), ("限制", narrative["limitations"])):
+        next(x for x in app.text_area if x.label == label).set_value(value)
+    next(b for b in app.button if b.label == "保存写作材料并校验证据").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    assert not app.error, [x.value for x in app.error]
+    saved = workspace.snapshot(project)
+    assert saved["draft_source"] == narrative
+    assert saved["status"]["budget"]["calls"] == 0
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 
