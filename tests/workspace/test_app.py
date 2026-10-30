@@ -495,6 +495,58 @@ def test_ui_narrative_form_persists_evidence_anchored_text_without_model_call(tm
     assert saved["status"]["budget"]["calls"] == 0
 
 
+def test_ui_reproduction_button_reexecutes_real_synthetic_analysis(tmp_path, monkeypatch):
+    import importlib.util
+    import os
+    import pytest
+
+    if os.environ.get("CRA_ISOLATION_TESTS") != "1":
+        pytest.skip("Real OS isolation test must be explicitly enabled")
+    from cra_engine.runtime import plan, run
+    from cra_engine.store import Store
+
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-reproduction"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    source = Path(__file__).resolve().parents[2] / "streamlit_app.py"
+    app = AppTest.from_file(str(source), default_timeout=30).run()
+    workspace = app.session_state["workspace"]
+    project = "f" * 32
+    demo_spec = importlib.util.spec_from_file_location("cra_workspace_reproduction_demo", Path(__file__).resolve().parents[2] / "examples/run_engine_demo.py")
+    demo = importlib.util.module_from_spec(demo_spec)
+    demo_spec.loader.exec_module(demo)
+    root = demo.prepare(workspace.directory / project)
+    from cra_engine.common import save
+    save(root / ".cra/materials.json", {"data": [], "literature": []})
+
+    store = Store(root)
+    try:
+        plan(store)
+        store.approve("authorization", "TEST FIXTURE ONLY", "Synthetic reproduction UI test; not human approval", "APPROVE " + store.snapshot("authorization")[:12])
+        run(store)
+        assert store.get("analysis") is None
+        store.approve("protocol", "TEST FIXTURE ONLY", "Synthetic reproduction UI test; not human approval", "APPROVE " + store.snapshot("protocol")[:12])
+        status = run(store)
+        assert store.get("analysis", fresh=True) is not None
+        assert status["budget"]["calls"] == 0
+    finally:
+        store.close()
+
+    app.session_state["project"] = project
+    app.session_state["route"] = "分析结果"
+    app.run()
+    assert not app.exception
+    button = next(b for b in app.button if b.label == "从授权输入独立重算并对账")
+    assert not button.disabled
+    button.click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    report = app.session_state["reproduction_" + project]
+    assert report["passed"] is True
+    assert report["differences"] == []
+    assert report["relative_tolerance"] == 1e-7
+    assert report["absolute_tolerance"] == 1e-9
+    assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 
