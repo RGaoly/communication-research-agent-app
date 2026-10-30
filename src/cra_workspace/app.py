@@ -496,12 +496,14 @@ def settings(w, p, s):
                 hosting_environment.clear()
                 st.rerun()
         if s["environment"]:
-            if not s["environment"]["passed"]: st.error(s["environment"]["message"])
-            st.json(s["environment"])
             remote_check = s["environment"].get("remote_worker_check")
-            if remote_check and remote_check.get("passed"):
-                st.success("已配置的独立服务器隔离自检通过。当前项目仍使用工作台所在机器；切换前不会上传本项目材料。")
-            elif remote_check:
+            if not s["environment"]["passed"]:
+                if remote_check and remote_check.get("passed"):
+                    st.warning("当前项目仍使用工作台所在机器，本机隔离自检未通过；独立服务器健康检查通过。要远程运行，请在上方单独选择服务器并明确同意传输。本次没有上传材料。")
+                else:
+                    st.error(s["environment"]["message"])
+            st.json(s["environment"])
+            if remote_check and not remote_check.get("passed"):
                 st.error(remote_check.get("message", "独立服务器检查未通过；没有发送研究材料。"))
     st.caption("保存配置不会自动发起模型请求，也不等于研究授权。模型密钥只留在此会话的服务进程内存；配置变化、到期、清除或终审后失效。")
     brief = s["brief"]

@@ -221,5 +221,6 @@ def test_settings_button_shows_remote_health_when_current_local_isolation_fails(
 
     assert not app.exception
     assert remote.calls == 1
-    assert any("独立服务器隔离自检通过" in item.value for item in app.success)
+    assert any("独立服务器健康检查通过" in item.value for item in app.warning)
+    assert any("没有上传材料" in item.value for item in app.warning)
     assert workspace.snapshot(p)["brief"].get("execution", {"backend": "local"}) == {"backend": "local"}
