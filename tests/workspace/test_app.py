@@ -340,6 +340,84 @@ def test_ui_remote_statistics_scope_requires_consent_and_persists_backend(tmp_pa
     assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
 
 
+def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_path, monkeypatch):
+    """Synthetic end-to-end flow from UI data/source uploads to a validated plan."""
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-research-plan"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    assert not app.exception
+    app.text_input[0].set_value("Synthetic evidence to protocol")
+    app.text_area[0].set_value("Does x relate to y in this generated dataset?")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    project = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+
+    app.radio[0].set_value("材料与测量").run()
+    next(x for x in app.get("file_uploader") if x.label.startswith("接入CSV或Stata")).set_value(
+        ("fixture.csv", b"x,y\n1,2\n2,4\n3,5\n4,8\n", "text/csv")
+    ).run()
+    next(b for b in app.button if b.label == "读取并登记数据").click().run()
+    assert not app.exception
+    next(x for x in app.text_input if x.label == "实际核查人").set_value("TEST FIXTURE ONLY")
+    next(x for x in app.text_area if x.label.startswith("核查依据：")).set_value("TEST FIXTURE ONLY; synthetic scale and coding")
+    next(x for x in app.checkbox if x.label.startswith("我已核查以上题项")).check()
+    next(b for b in app.button if b.label == "保存核查后的分析副本").click().run()
+    assert not app.exception
+    assert workspace.snapshot(project)["measurement_reviewed"] is True
+
+    app.radio[0].set_value("文献与证据").run()
+    excerpt = b"Synthetic excerpt: respondents infer foreign public sentiment from cross-national media exposure.\n\nThis is a fabricated fixture, not a real citation."
+    next(x for x in app.get("file_uploader") if x.label.startswith("接入有权使用的文献")).set_value(
+        ("fixture.md", excerpt, "text/markdown")
+    ).run()
+    next(b for b in app.button if b.label == "登记文献材料").click().run()
+    assert not app.exception
+
+    for label, value in {
+        "文献ID（英文字母/数字/下划线）": "synthetic_ref",
+        "证据片段ID（全项目唯一）": "synthetic_span",
+        "题名": "Synthetic source fixture",
+        "作者（用分号分隔，保留原文署名）": "Example Author",
+        "出版年份": "2026",
+        "期刊/出版来源": "Synthetic Journal",
+        "来源URL": "https://example.invalid/source",
+        "从上方实际位置摘取原文（至少8个字符）": "respondents infer foreign public sentiment",
+        "该片段支持或反驳哪项论断？": "Foreign attitudes are perceived by respondents.",
+        "实际审阅者": "TEST FIXTURE ONLY",
+        "核查依据与条件限制（至少8个字符）": "Synthetic fixture only; no real source was reviewed.",
+    }.items():
+        widget = next(x for x in (*app.text_input, *app.text_area) if x.label == label)
+        widget.set_value(value)
+    next(x for x in app.selectbox if x.label == "论断支持判断").set_value("supported")
+    next(x for x in app.checkbox if x.label.startswith("我已核对作者")).check()
+    next(b for b in app.button if b.label == "保存题录与证据定位").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    references = workspace.references(project)
+    assert references[0]["id"] == "synthetic_ref"
+    assert references[0]["spans"][0]["id"] == "synthetic_span"
+    assert references[0]["spans"][0]["status"] == "supported"
+
+    app.radio[0].set_value("研究计划").run()
+    next(x for x in app.text_area if x.label == "正式研究问题").set_value("Among generated cases, how is x associated with y?")
+    next(x for x in app.text_area if x.label == "理论贡献或拟检验的理论张力").set_value("Synthetic relationship used only to exercise the planning form.")
+    next(x for x in app.text_area if x.label == "竞争解释及可区分/不可区分的证据").set_value("Generated values are fixed; this fixture makes no real theoretical claim.")
+    next(x for x in app.text_area if x.label == "测量、样本与解释边界").set_value("Synthetic four-row sample; no population or causal inference.")
+    next(x for x in app.multiselect if x.label == "理论依据的已核查证据ID").set_value(["synthetic_span"])
+    next(x for x in app.text_area if x.label.startswith("冻结前已经接触过哪些数据")).set_value("All synthetic rows were visible before this plan was saved.")
+    next(x for x in app.selectbox if x.label == "主要因变量").set_value("y")
+    next(x for x in app.multiselect if x.label == "解释变量（不要包含因变量）").set_value(["x"])
+    next(b for b in app.button if b.label == "校验并保存计划草案").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    snapshot = workspace.snapshot(project)
+    protocol = snapshot["protocol_source"]
+    assert protocol["rq"] == "Among generated cases, how is x associated with y?"
+    assert protocol["models"][0]["y"] == "y"
+    assert protocol["models"][0]["x"] == ["x"]
+    assert protocol["theory"]["evidence_ids"] == ["synthetic_span"]
+    assert not snapshot["status"]["approvals"]["protocol"]
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 
