@@ -208,4 +208,5 @@ CASES = (
     ('tests.workspace.test_app', 'test_ui_start_and_safe_pause_control_persisted_background_job'),
     ('tests.workspace.test_app', 'test_measurement_missing_codes_persist_and_are_reapplied_on_ui_save'),
     ('tests.workspace.test_workspace', 'test_legacy_missing_rules_are_restored_only_for_the_reviewed_dataset'),
+    ('tests.engine.test_sources_and_models', 'test_saved_researcher_narrative_is_used_with_models_and_waits_for_manual_revision'),
 )

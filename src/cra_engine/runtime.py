@@ -155,7 +155,9 @@ def _run_task(store, task, deadline):
     if ident == "draft":
         corpus, claims = store.get("corpus", fresh=True), store.get("claims", fresh=True)
         manual = root / "manuscript/narrative.json"
-        if brief["permissions"]["model"]:
+        if manual.is_file():
+            narrative = load(manual)
+        elif brief["permissions"]["model"]:
             context = {"protocol": store.get("protocol", fresh=True), "language": brief["language"], "target_profile": brief["profile"], "claims": claims, "literature_evidence": model_corpus(corpus), "previous_issues": store.meta("revision_issues", [])}
             instruction = ('Return strings introduction,theory,discussion,limitations. Use [[cite:REFERENCE_ID]] in introduction and theory, only supported supplied references. '
                            'All numeric facts must be {{claim:CLAIM_ID}} anchors; do not type any other digits, years or fabricated statistics. '
@@ -274,7 +276,7 @@ def run(store):
                 rounds = store.meta("revision_rounds", 0)
                 issues = ready["blocking_issues"]
                 # Only textual evidence issues can be revised without altering frozen science.
-                if brief["permissions"]["model"] and rounds < brief["limits"]["max_revisions"] and all(i.get("code") in ("wording", "unsupported_interpretation", "missing_limit", "citation_context") for i in issues):
+                if brief["permissions"]["model"] and not (store.root / "manuscript/narrative.json").is_file() and rounds < brief["limits"]["max_revisions"] and all(i.get("code") in ("wording", "unsupported_interpretation", "missing_limit", "citation_context") for i in issues):
                     with store.tx():
                         store.set_meta("revision_rounds", rounds + 1)
                         store.set_meta("revision_issues", issues)

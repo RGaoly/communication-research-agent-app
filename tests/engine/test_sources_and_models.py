@@ -188,6 +188,34 @@ def test_textual_review_triggers_bounded_revision(modeled, local_recipes):
     assert state['review_count']==2
 
 
+def test_saved_researcher_narrative_is_used_with_models_and_waits_for_manual_revision(modeled, local_recipes):
+    store, state = modeled
+    state["revision"] = True
+    state["bad_number"] = True  # Any accidental writer call would invent a number and fail.
+    ModelAdapter(store).contract_test()
+    run(store)
+    approve_fixture(store, "protocol")
+    narrative = demo.narrative()
+    narrative["discussion"] += " RESEARCHER AUTHORED WORDING."
+    save(store.root / "manuscript/narrative.json", narrative)
+
+    result = run(store)
+    assert not result["readiness"]["ready_for_final"]
+    assert "RESEARCHER AUTHORED WORDING." in store.get("draft", fresh=True)["text"]
+    assert state["review_count"] == 1
+    assert store.meta("revision_rounds", 0) == 0
+    assert not any("research_writer" in r["messages"][0]["content"] for r in state["requests"])
+    assert load(store.root / "manuscript/narrative.json") == narrative
+
+    narrative["discussion"] += " The researcher has addressed the review wording."
+    save(store.root / "manuscript/narrative.json", narrative)
+    result = run(store)
+    assert result["readiness"]["ready_for_final"], result
+    assert "The researcher has addressed the review wording." in store.get("draft", fresh=True)["text"]
+    assert state["review_count"] == 2
+    assert not any("research_writer" in r["messages"][0]["content"] for r in state["requests"])
+
+
 def test_quote_must_match_declared_location(project):
     refs=load(project.root/'literature/references.json')
     refs[0]['spans'][0]['quote']='This quotation does not exist anywhere'

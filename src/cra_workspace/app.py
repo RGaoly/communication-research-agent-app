@@ -442,7 +442,7 @@ def deliver(w, p, s):
     if draft: manuscript(draft["text"])
     else: object_view(s, "draft")
     with st.expander("编辑证据约束的写作材料", expanded=not draft):
-        st.caption("数字必须用 {{claim:ID}}，引文用 [[cite:文献ID]]。系统会校验实际证据；未经支持的数字、引文与因果解释不能进入稿件。")
+        st.caption("保存后使用你提供的四节文字生成稿件；即使启用模型，也不会自动改写这些文字。复核问题需由你修订。数字必须用 {{claim:ID}}，引文用 [[cite:文献ID]]；系统会校验实际证据。")
         claims = value(s, "claims")
         if claims: st.json(claims)
         original = s["draft_source"] or {}
