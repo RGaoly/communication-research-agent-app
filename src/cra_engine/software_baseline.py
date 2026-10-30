@@ -206,4 +206,5 @@ CASES = (
     ('tests.workspace.test_app', 'test_ui_reproduction_button_reexecutes_real_synthetic_analysis'),
     ('tests.workspace.test_app', 'test_ui_billing_reconciliation_requires_confirmation_and_settles_uncertain_call'),
     ('tests.workspace.test_app', 'test_ui_start_and_safe_pause_control_persisted_background_job'),
+    ('tests.workspace.test_app', 'test_measurement_missing_codes_persist_and_are_reapplied_on_ui_save'),
 )

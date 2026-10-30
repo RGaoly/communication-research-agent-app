@@ -128,6 +128,24 @@ class Workspace:
             objects = {r["id"]: {"kind": r["kind"], "hash": r["hash"], "version": r["version"],
                                   "stale": bool(r["stale"]), "value": store.get(r["id"])}
                        for r in rows if r["kind"] not in ("run_record", "specification_attempt")}
+            codebook_path = within(store.root, brief["data"]["codebook"]) if ready else None
+            missing_path = codebook_path.with_name("missing_codes.json") if codebook_path else None
+            missing_codes = {}
+            if missing_path and missing_path.is_file():
+                missing_codes = load(missing_path)
+            else:
+                declaration = store.get("measurement_declaration") or {}
+                flow = declaration.get("flow", {}) if isinstance(declaration, dict) else {}
+                accepted = flow.get("missing_rules") if isinstance(flow, dict) else None
+                if isinstance(accepted, dict):
+                    missing_codes = accepted
+                elif ready:
+                    # Stata user-missing codes are suggestions from the file
+                    # metadata. They remain unapplied until the researcher
+                    # reviews and saves the measurement form.
+                    missing_codes = {name: spec["proposed_missing_codes"]
+                                     for name, spec in load(codebook_path).get("columns", {}).items()
+                                     if spec.get("proposed_missing_codes")}
             specs = [json.loads(r[0]) for r in store.db.execute("SELECT body FROM objects WHERE kind='specification_attempt'")]
             calls = [{k: r[k] for k in ("id", "task", "status", "reserved", "actual", "model", "at")}
                      for r in store.db.execute("SELECT * FROM calls ORDER BY at")]
@@ -135,7 +153,8 @@ class Workspace:
             return {"project_id": project, "engine_version": __version__, "deployment": self.deployment,
                     "synthetic": store.meta("synthetic", False), "brief": brief, "status": output,
                     "running": running, "job": store.meta("workspace_job"), "environment": store.meta("workspace_environment"), "materials": load(store.root / ".cra/materials.json"),
-                    "codebook": load(within(store.root, brief["data"]["codebook"])) if ready else None,
+                    "codebook": load(codebook_path) if ready else None,
+                    "missing_codes": missing_codes,
                     "files_ready": ready, "objects": objects, "specifications": specs, "calls": calls,
                     "events": events, "has_session_key": self.credentials.get(project, digest(brief["model"])) is not None,
                     "measurement_reviewed": ready and store.meta("measurement_review") == self._measurement_hash(store.root, brief),
@@ -145,7 +164,11 @@ class Workspace:
 
     @staticmethod
     def _measurement_hash(root, brief):
-        return digest({k: sha(within(root, brief["data"][k])) for k in ("csv", "codebook")})
+        evidence = {k: sha(within(root, brief["data"][k])) for k in ("csv", "codebook")}
+        missing_path = within(root, brief["data"]["codebook"]).with_name("missing_codes.json")
+        if missing_path.is_file():
+            evidence["missing_codes"] = sha(missing_path)
+        return digest(evidence)
 
     def _consent(self, consent):
         require(self.deployment != "cloud" or consent is True, "云端接入前需明确同意将所选材料上传并在此服务处理")
@@ -187,6 +210,11 @@ class Workspace:
 
     def measurement(self, project, book, missing_codes, reviewer, note):
         require(isinstance(reviewer, str) and len(reviewer.strip()) >= 2 and isinstance(note, str) and len(note.strip()) >= 8, "请填写实际核查人和题项/编码核查依据")
+        require(isinstance(missing_codes, dict) and all(
+            isinstance(name, str) and isinstance(codes, list) and
+            all(isinstance(code, str) for code in codes) and len(codes) == len(set(codes))
+            for name, codes in missing_codes.items()
+        ), "缺失编码须为无重复字符串列表")
         with self._lock, self._store(project) as store:
             self._editable(project)
             catalog = load(store.root / ".cra/materials.json")
@@ -198,6 +226,7 @@ class Workspace:
             folder.mkdir(parents=True)
             atomic(folder / "input.csv", text)
             save(folder / "codebook.json", book)
+            save(folder / "missing_codes.json", missing_codes)
             brief = load(store.root / "brief.json")
             brief["data"].update(csv=(folder / "input.csv").relative_to(store.root).as_posix(), codebook=(folder / "codebook.json").relative_to(store.root).as_posix())
             save(store.root / "brief.json", brief)

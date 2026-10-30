@@ -173,6 +173,46 @@ def test_advanced_measurement_submits_its_own_review_fields(tmp_path, monkeypatc
     assert s["measurement_reviewed"] and s["codebook"]["columns"]["x"]["min"] == 0
 
 
+def test_measurement_missing_codes_persist_and_are_reapplied_on_ui_save(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "missing-code-persistence"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    w = app.session_state["workspace"]
+    p = w.create("Synthetic missing-code fixture", "Preserve reviewed missing values", synthetic=True)["project_id"]
+    w.import_data(p, "fixture.csv", b"x,y\n1,2\n99,9\n2,4\n")
+    book = w.snapshot(p)["codebook"]
+    book["columns"]["x"].update(min=0, max=10)
+    book["columns"]["y"].update(min=0, max=10)
+    app.session_state["project"] = p
+    app.session_state["route"] = "材料与测量"
+    app.run()
+
+    next(x for x in app.text_area if x.label == "完整代码本JSON").set_value(json.dumps(book))
+    next(x for x in app.text_area if x.label == "缺失映射JSON").set_value(json.dumps({"x": ["99"]}))
+    next(x for x in app.text_input if x.label == "高级代码本实际核查人").set_value("TEST FIXTURE ONLY")
+    next(x for x in app.text_area if x.label == "高级代码本核查依据").set_value("TEST FIXTURE ONLY; preserve sentinel 99 as missing")
+    next(x for x in app.checkbox if x.label.startswith("我已核查这份高级")).check()
+    next(b for b in app.button if b.label == "采用高级代码本并记录核查声明").click().run()
+    assert not app.exception
+    first = w.snapshot(p)
+    assert first["measurement_reviewed"] and first["missing_codes"] == {"x": ["99"]}
+
+    app.radio[0].set_value("研究概览").run()
+    app.radio[0].set_value("材料与测量").run()
+    assert not app.exception
+    saved_mapping = next(x for x in app.text_area if x.label == "缺失映射JSON").value
+    assert json.loads(saved_mapping) == {"x": ["99"]}
+    next(x for x in app.text_input if x.label == "高级代码本实际核查人").set_value("TEST FIXTURE ONLY")
+    next(x for x in app.text_area if x.label == "高级代码本核查依据").set_value("TEST FIXTURE ONLY; reapply the saved sentinel rule")
+    next(x for x in app.checkbox if x.label.startswith("我已核查这份高级")).check()
+    next(b for b in app.button if b.label == "采用高级代码本并记录核查声明").click().run()
+    assert not app.exception
+    final = w.snapshot(p)
+    assert final["measurement_reviewed"] and final["missing_codes"] == {"x": ["99"]}
+    assert final["objects"]["measurement_declaration"]["value"]["flow"]["missing_rules"] == {"x": ["99"]}
+
+
 def test_key_clear_removes_pending_input_and_keeps_saved_target(tmp_path, monkeypatch):
     monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "key-clear"))
     monkeypatch.setenv("CRA_DEPLOYMENT", "local")

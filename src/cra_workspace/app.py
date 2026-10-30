@@ -248,7 +248,8 @@ def materials(w, p, s):
     st.subheader("题项与编码核查")
     st.warning("观测最小值与最大值不是问卷量尺。请依据题干修正量尺，明确拒答/不知道等编码，排除身份字段；不会自动删除样本。")
     book = s["codebook"]
-    rows = [{"保留": not spec.get("sensitive", False), "变量": name, "类型": spec["type"], "题项含义": spec.get("question", ""), "量尺下界": spec.get("min"), "量尺上界": spec.get("max"), "类别取值JSON": json.dumps(spec.get("allowed", []), ensure_ascii=False), "转为缺失的编码JSON": "[]"} for name, spec in book["columns"].items()]
+    missing_codes = s.get("missing_codes", {})
+    rows = [{"保留": not spec.get("sensitive", False), "变量": name, "类型": spec["type"], "题项含义": spec.get("question", ""), "量尺下界": spec.get("min"), "量尺上界": spec.get("max"), "类别取值JSON": json.dumps(spec.get("allowed", []), ensure_ascii=False), "转为缺失的编码JSON": json.dumps(missing_codes.get(name, []), ensure_ascii=False)} for name, spec in book["columns"].items()]
     with st.form("measurement_" + p):
         edited = st.data_editor(rows, hide_index=True, width="stretch", disabled=["变量"], column_config={"类型": st.column_config.SelectboxColumn(options=["number", "category", "id", "text"])}, key="measurement_grid_" + p + "_" + data["id"])
         reviewer = st.text_input("实际核查人", key="measurement_person")
@@ -276,7 +277,7 @@ def materials(w, p, s):
         st.caption("修改完整JSON后仍须由你核查。复杂抽样、潜变量跨国比较缺乏支持时会阻断分析。")
         with st.form("advanced_measurement_" + p):
             raw = st.text_area("完整代码本JSON", json.dumps(book, ensure_ascii=False, indent=2), height=300, key="book_json_" + p)
-            missing_raw = st.text_area("缺失映射JSON", "{}", key="book_missing_" + p)
+            missing_raw = st.text_area("缺失映射JSON", json.dumps(missing_codes, ensure_ascii=False, indent=2), key="book_missing_" + p)
             advanced_reviewer = st.text_input("高级代码本实际核查人")
             advanced_note = st.text_area("高级代码本核查依据")
             advanced_confirmed = st.checkbox("我已核查这份高级代码本及其缺失、量表与设计规则。")
