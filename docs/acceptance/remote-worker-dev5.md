@@ -12,10 +12,10 @@
 
 ## 尚未完成
 
-- 公网 TLS 入口尚未配置。ECS 安全组需由用户添加 TCP 80 与 443 入方向；TCP 8781 不开放公网。
+- 公网 TLS 入口尚未配置。已安装 Caddy，但未启用服务，也未绑定公网端口。公网 IP 可通过 Let's Encrypt 的 TLS-ALPN-01 在 TCP 443 验证；因此这套方案不需要开放 TCP 80。只有用户决定继续云端连接后，才需在 ECS 安全组添加 TCP 443 入方向；TCP 8781 始终只监听 `127.0.0.1`。来源：[Let's Encrypt challenge types](https://letsencrypt.org/docs/challenge-types/)、[IP and short-lived certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)。
 - Streamlit secrets 尚未配置，因此在线前端尚不能连接该 worker。
 - 尚未完成真实模型盲测、独立工程验收、双专家文献核查或三个真实项目试点；本记录不能作为正式科研发布验收。
-- Python 源码编译检查通过；当前桌面 Python 环境没有 pytest，完整回归需由 GitHub Actions 的独立 Linux 构建完成。
+- 在独立 Python 3.12 环境完成本机全量 pytest：宿主系统权限下 `245 passed, 5 skipped`。受 Codex 受限进程直接运行时，19 项嵌套 macOS Seatbelt 用例被父级沙盒拒绝；使用宿主权限重跑远程隔离组后 `22 passed`，全量宿主权限运行通过。GitHub Actions 的独立 Linux 构建也成功。
 
 ## 数据边界
 
