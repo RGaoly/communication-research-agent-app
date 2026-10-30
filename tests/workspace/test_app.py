@@ -418,6 +418,33 @@ def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_pa
     assert not snapshot["status"]["approvals"]["protocol"]
 
 
+def test_ui_run_button_calls_backend_and_refuses_without_current_authorization(tmp_path, monkeypatch):
+    """A click reaches the real service gate and starts no work before approval."""
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-run-gate"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    app.text_input[0].set_value("Synthetic run authorization gate")
+    app.text_area[0].set_value("Ensure no run bypasses current project authorization")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    project = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+    app.radio[0].set_value("材料与测量").run()
+    next(x for x in app.get("file_uploader") if x.label.startswith("接入CSV或Stata")).set_value(
+        ("fixture.csv", b"x,y\n1,2\n2,4\n3,6\n", "text/csv")
+    ).run()
+    next(b for b in app.button if b.label == "读取并登记数据").click().run()
+    app.radio[0].set_value("研究概览").run()
+    run_button = next(b for b in app.button if b.label == "继续执行获批研究")
+    assert not run_button.disabled
+    run_button.click().run()
+    assert any("请先批准当前项目授权" in x.value for x in app.error)
+    snapshot = workspace.snapshot(project)
+    assert not snapshot["running"]
+    assert snapshot["status"]["budget"]["calls"] == 0
+    assert not snapshot["status"]["approvals"]["authorization"]
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 

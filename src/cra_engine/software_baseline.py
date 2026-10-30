@@ -1,7 +1,7 @@
 """Frozen release regression identities, not proof that tests actually ran.
 
 Base: 180 cases at f9d1a225 plus 11 software-evidence negative controls, then
-four UI upload/export/recovery/settings/plan cases added at later candidate freezes.
+five UI upload/export/recovery/settings/plan/run-gate cases added at later candidate freezes.
 Independent operator still verifies invocation, source origin and actual execution.
 Update only at candidate freeze; no existing identity may silently disappear.
 """
@@ -201,4 +201,5 @@ CASES = (
     ('tests.workspace.test_app', 'test_ui_settings_save_persists_model_budget_language_and_submission_profile'),
     ('tests.workspace.test_app', 'test_ui_remote_statistics_scope_requires_consent_and_persists_backend'),
     ('tests.workspace.test_app', 'test_ui_literature_evidence_and_protocol_forms_create_backend_objects'),
+    ('tests.workspace.test_app', 'test_ui_run_button_calls_backend_and_refuses_without_current_authorization'),
 )
