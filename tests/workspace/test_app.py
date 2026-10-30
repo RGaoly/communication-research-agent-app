@@ -254,6 +254,92 @@ def test_ui_upload_diagnostic_export_and_private_restore_are_real_operations(tmp
     assert not restored_snapshot["status"]["approvals"]["authorization"]
 
 
+def test_ui_settings_save_persists_model_budget_language_and_submission_profile(tmp_path, monkeypatch):
+    """Settings controls write the values later used by the real workspace backend."""
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-settings"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    assert not app.exception
+    app.text_input[0].set_value("Synthetic settings persistence")
+    app.text_area[0].set_value("Verify real saved configuration")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    project = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+
+    app.radio[0].set_value("模型与设置").run()
+    next(x for x in app.checkbox if x.label == "允许本项目使用模型服务").check()
+    next(x for x in app.text_input if x.label == "OpenAI兼容 Base URL").set_value("https://api.example.invalid/v1")
+    next(x for x in app.text_input if x.label == "固定模型ID").set_value("synthetic-model-v7")
+    next(x for x in app.number_input if x.label == "输入费率 / 百万token").set_value(1.25)
+    next(x for x in app.number_input if x.label == "输出费率 / 百万token").set_value(2.5)
+    next(x for x in app.number_input if x.label == "本项目累计预算上限").set_value(7.0)
+    next(x for x in app.text_input if x.label == "币种").set_value("USD")
+    next(x for x in app.selectbox if x.label == "稿件语言").set_value("en")
+    next(x for x in app.selectbox if x.label == "规范模式").set_value("ica")
+    next(x for x in app.text_input if x.label == "具体期刊 / ICA年份与分会").set_value("ICA 2027 Political Communication")
+    next(x for x in app.text_input if x.label == "已查阅的官方规范URL").set_value("https://ica.example.invalid/submission")
+    next(x for x in app.text_input if x.label == "查阅日期（YYYY-MM-DD）").set_value("2026-10-30")
+    next(x for x in app.text_area if x.label == "规范覆盖范围与限制").set_value("Synthetic fixture: verify settings persistence only.")
+    next(b for b in app.button if b.label == "保存项目设置").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+
+    saved = workspace.snapshot(project)["brief"]
+    assert saved["permissions"]["model"] is True
+    assert saved["permissions"]["allowed_hosts"] == ["api.example.invalid"]
+    assert saved["model"]["base_url"] == "https://api.example.invalid/v1"
+    assert saved["model"]["model"] == "synthetic-model-v7"
+    assert saved["model"]["input_per_million"] == 1.25
+    assert saved["model"]["output_per_million"] == 2.5
+    assert saved["limits"]["max_cost"] == 7.0
+    assert saved["limits"]["currency"] == "USD"
+    assert saved["language"] == "en"
+    assert saved["profile"]["name"] == "ica"
+    assert saved["profile"]["target"] == "ICA 2027 Political Communication"
+    assert saved["profile"]["sources"][0]["url"] == "https://ica.example.invalid/submission"
+    assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
+
+
+def test_ui_remote_statistics_scope_requires_consent_and_persists_backend(tmp_path, monkeypatch):
+    from cra_remote.protocol import identity
+    from cra_workspace import app as app_module
+
+    class RemoteFixture:
+        endpoint = "https://synthetic-worker.example.invalid"
+
+        def health(self):
+            # Contract fixture: this does not contact or execute on a real server.
+            return {"identity": identity()}
+
+    remote = RemoteFixture()
+    monkeypatch.setattr(app_module, "operator_executor", lambda: remote)
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-remote-scope"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    assert not app.exception
+    app.text_input[0].set_value("Synthetic remote scope")
+    app.text_area[0].set_value("Verify separate transfer permission")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    project = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+
+    app.radio[0].set_value("模型与设置").run()
+    next(x for x in app.checkbox if x.label == "本项目使用上述独立统计服务器").check()
+    next(b for b in app.button if b.label == "保存统计执行范围").click().run()
+    assert any("请明确允许分析副本" in x.value for x in app.error)
+    assert workspace.snapshot(project)["brief"].get("execution", {"backend": "local"})["backend"] == "local"
+
+    next(x for x in app.checkbox if x.label == "我有权并明确同意将本项目经核查的分析副本上传到上述服务器。").check()
+    next(b for b in app.button if b.label == "保存统计执行范围").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    saved = workspace.snapshot(project)["brief"]
+    assert saved["execution"]["backend"] == "remote"
+    assert saved["execution"]["endpoint"] == remote.endpoint
+    assert saved["permissions"]["remote_statistics"] is True
+    assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 
