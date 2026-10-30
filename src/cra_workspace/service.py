@@ -157,6 +157,7 @@ class Workspace:
                     "missing_codes": missing_codes,
                     "files_ready": ready, "objects": objects, "specifications": specs, "calls": calls,
                     "events": events, "has_session_key": self.credentials.get(project, digest(brief["model"])) is not None,
+                    "model_contract": store.meta("model_contract") if (store.meta("model_contract") or {}).get("config_hash") == digest(brief["model"]) else None,
                     "measurement_reviewed": ready and store.meta("measurement_review") == self._measurement_hash(store.root, brief),
                     "draft_source": load(store.root / "manuscript/narrative.json") if (store.root / "manuscript/narrative.json").is_file() else None,
                     "protocol_source": load(store.root / "protocol/plan.json") if (store.root / "protocol/plan.json").is_file() else None,

@@ -210,4 +210,5 @@ CASES = (
     ('tests.workspace.test_workspace', 'test_legacy_missing_rules_are_restored_only_for_the_reviewed_dataset'),
     ('tests.engine.test_sources_and_models', 'test_saved_researcher_narrative_is_used_with_models_and_waits_for_manual_revision'),
     ('tests.workspace.test_workspace', 'test_reproduction_is_visible_to_other_sessions_and_releases_after_failure'),
+    ('tests.workspace.test_app', 'test_ui_model_contract_button_executes_two_requests_and_shows_current_result'),
 )

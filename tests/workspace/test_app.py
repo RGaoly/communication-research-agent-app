@@ -708,6 +708,72 @@ def test_ui_reproduction_button_reexecutes_real_synthetic_analysis(tmp_path, mon
     assert any("输入已经变化" in x.value for x in app.warning)
 
 
+def test_ui_model_contract_button_executes_two_requests_and_shows_current_result(tmp_path, monkeypatch):
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    requests = []
+
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append(body)
+            message = {"role": "assistant", "content": '{"ok":true,"echo":7}'}
+            if body.get("tools"):
+                message = {"role": "assistant", "content": None, "tool_calls": [{"id": "fixture_echo", "type": "function", "function": {"name": "echo", "arguments": '{"number":7}'}}]}
+            raw = json.dumps({"model": "synthetic-model", "choices": [{"message": message, "finish_reason": "stop"}], "usage": {"prompt_tokens": 50, "completion_tokens": 50}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-model-contract"))
+        monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+        app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+        w = app.session_state["workspace"]
+        p = w.create("Synthetic model interface UI", "No real research or model calls", synthetic=True)["project_id"]
+        w.import_data(p, "fixture.csv", b"x,y\n1,2\n2,3\n")
+        brief = w.snapshot(p)["brief"]
+        w.save_brief(p, {"permissions": dict(brief["permissions"], model=True, allowed_hosts=["127.0.0.1"]), "model": dict(brief["model"], base_url=f"http://127.0.0.1:{server.server_port}/v1", model="synthetic-model", input_per_million=1, output_per_million=1), "limits": dict(brief["limits"], max_cost=1)})
+        app.session_state["project"] = p
+        app.session_state["route"] = "模型与设置"
+        app.run()
+        next(x for x in app.text_input if x.label == "API Key").set_value("SYNTHETIC-KEY-NEVER-SENT-EXTERNALLY")
+        next(x for x in app.checkbox if x.label.startswith("我同意该密钥")).check()
+        next(b for b in app.button if b.label == "使用此密钥").click().run()
+        next(b for b in app.button if b.label == "验证模型契约 · 两次付费请求").click().run()
+        assert not app.exception and not requests
+        assert any("请先批准当前项目授权" in x.value for x in app.error)
+        with w._store(p) as store:
+            store.approve("authorization", "TEST FIXTURE ONLY", "Synthetic contract UI test; no genuine human research approval", "APPROVE " + store.snapshot("authorization")[:12])
+        next(b for b in app.button if b.label == "验证模型契约 · 两次付费请求").click().run()
+        w._threads[p].join(timeout=10)
+        assert not w.running(p)
+        next(b for b in app.button if b.label == "刷新执行状态与费用").click().run()
+        assert not app.exception
+        snapshot = w.snapshot(p)
+        assert len(requests) == 2
+        assert snapshot["model_contract"]["model"] == "synthetic-model"
+        assert snapshot["status"]["budget"]["calls"] == 2
+        assert abs(snapshot["status"]["budget"]["spent"] - 0.0002) < 1e-12
+        assert any("当前模型配置已通过接口契约检查" in x.value for x in app.success)
+        changed = dict(snapshot["brief"]["model"], model="different-synthetic-model")
+        w.save_brief(p, {"model": changed})
+        next(b for b in app.button if b.label == "刷新执行状态与费用").click().run()
+        assert w.snapshot(p)["model_contract"] is None
+        assert not any("当前模型配置已通过接口契约检查" in x.value for x in app.success)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_ui_billing_reconciliation_requires_confirmation_and_settles_uncertain_call(tmp_path, monkeypatch):
     monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-billing"))
     monkeypatch.setenv("CRA_DEPLOYMENT", "local")

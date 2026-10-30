@@ -578,6 +578,17 @@ def settings(w, p, s):
             st.rerun()
     if b.button("验证模型契约 · 两次付费请求", disabled=s["running"] or not s["has_session_key"], width="stretch"):
         if act(lambda: w.start(p, model_test=True), "已在项目授权预算内启动两次接口契约请求；不等于科研能力盲测。"): st.rerun()
+    if s.get("model_contract"):
+        st.success("当前模型配置已通过接口契约检查 · " + s["model_contract"]["at"])
+    else:
+        st.info("当前模型配置尚未通过接口契约检查。")
+    job = s.get("job") or {}
+    if job.get("kind") == "model_contract" and s["running"]:
+        st.info("接口检查正在后台执行；可刷新查看结果与实际费用记录。")
+    if job.get("message"):
+        st.error(job["message"])
+    if st.button("刷新执行状态与费用"):
+        st.rerun()
     st.subheader("费用与待核对请求")
     st.json(s["status"]["budget"])
     if s["calls"]: st.dataframe(s["calls"], hide_index=True, width="stretch")
