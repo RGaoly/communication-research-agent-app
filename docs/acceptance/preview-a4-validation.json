@@ -1,0 +1,73 @@
+{
+  "version": "0.2.0a4",
+  "release_channel": "alpha_development_preview",
+  "formal_release_eligible": false,
+  "preview_publication_authorized": true,
+  "authorization_scope": "User requested preview publication before independent research acceptance; not a human scientific approval",
+  "source_tree_sha256": "2706206a2c1f9beeea56cdd151a855f7bedfc79b2ac08294b6c163b3c91e028b",
+  "candidate_wheel_sha256": "044750b5ab452ef40f7c07d1a7650ed107f3b8493f7076519d8f7eb5b4f3b116",
+  "software_tests": {
+    "tests": 170,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "software_test_scope": "macOS Python3.12; real OS integration enabled; component doubles and synthetic protocol cases labeled in tests",
+  "automatic_engineering": {
+    "bundle_valid": true,
+    "automated_engineering_passed": true,
+    "manual_cli_verified": false,
+    "engineering_acceptance_passed": false,
+    "release_eligible": false,
+    "suites": {
+      "installation": {
+        "status": "passed",
+        "cases": 1,
+        "minimum": 1
+      },
+      "statistics": {
+        "status": "passed",
+        "cases": 30,
+        "minimum": 30
+      },
+      "faults": {
+        "status": "passed",
+        "cases": 100,
+        "minimum": 100
+      },
+      "boundaries": {
+        "status": "passed",
+        "cases": 23,
+        "minimum": 20
+      },
+      "mutations": {
+        "status": "passed",
+        "cases": 3,
+        "minimum": 3
+      },
+      "literature": {
+        "status": "pending",
+        "reason": "report unavailable"
+      },
+      "live_model": {
+        "status": "pending",
+        "reason": "report unavailable"
+      },
+      "pilots": {
+        "status": "pending",
+        "reason": "report unavailable"
+      }
+    },
+    "problems": [],
+    "candidate_wheel_sha256": "044750b5ab452ef40f7c07d1a7650ed107f3b8493f7076519d8f7eb5b4f3b116",
+    "automated_observations_sha256": "4544c71cdd2a35097888b7c1fca08c75a23a1d137bfd8d4bc06894ae704e3f4b",
+    "limits": "Hash/signature integrity proves evidence binding and configured signer origin, not truth of expert judgments. Same-author automation is not independent human acceptance."
+  },
+  "paid_model_calls_in_this_iteration": 0,
+  "independent_human_reviews_completed": false,
+  "real_pilots_accepted": 0,
+  "literature_holdout_completed": false,
+  "live_research_holdout_completed": false,
+  "linux_independent_integration_completed": false,
+  "private_research_inputs_included": false
+}

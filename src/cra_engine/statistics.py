@@ -19,7 +19,7 @@ def recipe_identity():
             packages[name] = "not_installed"
     return {"id": "python-survey-v2", "python_version": sys.version.split()[0], "packages": packages,
             "sources": {name: sha(Path(__file__).with_name(name)) for name in
-                        ("__init__.py", "common.py", "statistics.py", "worker.py", "isolation.py")}}
+                        ("__init__.py", "common.py", "statistics.py", "worker.py", "isolation.py", "schema.py")}}
 
 
 def dependencies():

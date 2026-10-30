@@ -5,7 +5,8 @@ import uuid
 from pathlib import Path
 
 from .common import EngineError, digest, dumps, load, now, require, safe_text, save, sha, within
-from .isolation import IsolatedRecipeError, doctor, execute
+from .isolation import IsolatedRecipeError
+from .execution import doctor, execute
 from .literature import build_corpus, model_corpus
 from .models import ModelAdapter
 from .research import create_claims, method_review, render_draft, review_evidence, validate_narrative, validate_review
@@ -100,7 +101,7 @@ def _run_task(store, task, deadline):
     timeout = max(1, min(300, int(deadline - time.monotonic())))
     if ident == "audit":
         value = execute(store, "audit", {"csv_path": str(csv_path), "book_path": str(book_path), "min_cell": brief["limits"]["min_cell"], "recruited_n": brief["data"].get("recruited_n")}, [csv_path, book_path], timeout)
-        return value["result"], ["dataset", "codebook", "brief", "statistics_recipe"], {"isolation": value["isolation"]}
+        return value["result"], ["dataset", "codebook", "brief", "statistics_recipe"], {"isolation": value["isolation"], "remote_receipt": value.get("remote_receipt")}
     if ident == "corpus":
         return build_corpus(root, brief), ["literature_source", "brief"], {}
     if ident == "protocol":
@@ -148,7 +149,7 @@ def _run_task(store, task, deadline):
         with store.tx():
             value = store.get(specification)
             store.put(specification, "specification_attempt", dict(value, status="succeeded", analysis_hash=digest(execution["result"]), model_attempts=execution["result"].get("specification_ledger", [])))
-        return execution["result"], ["dataset", "codebook", "audit", "protocol", "statistics_recipe"], {"isolation": execution["isolation"], "specification": specification}
+        return execution["result"], ["dataset", "codebook", "audit", "protocol", "statistics_recipe"], {"isolation": execution["isolation"], "specification": specification, "remote_receipt": execution.get("remote_receipt")}
     if ident == "claims":
         return create_claims(store.get("analysis", fresh=True), brief["language"]), ["analysis", "brief"], {}
     if ident == "draft":

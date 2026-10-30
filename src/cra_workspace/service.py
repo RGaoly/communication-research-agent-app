@@ -31,7 +31,7 @@ ID = re.compile(r"^[a-f0-9]{32}$")
 
 
 class Workspace:
-    def __init__(self, root, owner=None, deployment="local"):
+    def __init__(self, root, owner=None, deployment="local", remote_executor=None):
         require(deployment in ("local", "cloud"), "工作区运行方式无效")
         owner = owner or secrets.token_hex(16)
         require(isinstance(owner, str) and ID.fullmatch(owner), "工作区会话标识无效")
@@ -39,6 +39,7 @@ class Workspace:
         require(not self.directory.is_symlink(), "工作区拒绝符号链接")
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.deployment = deployment
+        self.remote_executor = remote_executor
         self.credentials, self.reviews = Credentials(), Reviews()
         self._threads, self._lock = {}, threading.RLock()
 
@@ -54,6 +55,7 @@ class Workspace:
         # An unset graphical-session key must NEVER fall back to another user's
         # server environment key. The callback is never persisted or sent to workers.
         store.credential_provider = lambda: self.credentials.get(project, digest((store.get("brief") or load(store.root / "brief.json"))["model"]))
+        store.remote_executor = self.remote_executor
         if self.deployment == "cloud":
             from .network import public_fetch_json
             store.model_transport = public_fetch_json
@@ -217,6 +219,29 @@ class Workspace:
                 self._public_model(brief["model"]["base_url"])
             save(store.root / "brief.json", brief)
             if self._ready_files(store.root, brief): sync(store)
+            return {"saved": True, "authorization_requires_current_snapshot": True}
+
+    def configure_execution(self, project, enabled, consent=False, identity_hash=None):
+        """A separate per-project transfer decision, never inferred from a model key."""
+        require(type(enabled) is bool, "请选择统计执行方式")
+        with self._lock, self._store(project) as store:
+            self._editable(project)
+            brief = load(store.root / "brief.json")
+            if enabled:
+                require(consent is True and self.remote_executor is not None, "请明确允许分析副本交由当前独立执行服务器处理")
+                from cra_remote.protocol import identity
+                actual = self.remote_executor.health()
+                require(identity_hash == digest(actual["identity"]) == digest(identity()), "执行服务器版本已变化，请重新查看并确认")
+                brief["execution"] = {"backend": "remote", "endpoint": self.remote_executor.endpoint, "identity_hash": identity_hash}
+            else:
+                brief["execution"] = {"backend": "local"}
+            brief["permissions"]["remote_statistics"] = enabled
+            validate_brief(brief)
+            save(store.root / "brief.json", brief)
+            if self._ready_files(store.root, brief): sync(store)
+            with store.tx():
+                store.set_meta("workspace_environment", None)
+                store.event("statistics_scope_changed", {"execution": brief["execution"], "remote_transfer_consent": consent is True})
             return {"saved": True, "authorization_requires_current_snapshot": True}
 
     @staticmethod
@@ -453,6 +478,9 @@ class Workspace:
             with store.tx():
                 store.set_meta("paused", True)
                 store.event("workspace_pause_requested", {})
+            if self.remote_executor and (store.get("brief") or {}).get("execution", {}).get("backend") == "remote":
+                cancellation = self.remote_executor.cancel_pending(store)
+                with store.tx(): store.event("remote_cancellation_requested", {"outcomes": cancellation})
         return {"pause_requested": True, "still_running": self.running(project)}
 
     def reconcile(self, project, call, amount, note, confirmed=False):

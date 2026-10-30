@@ -13,6 +13,17 @@ MINIMUM = {"installation": 1, "statistics": 30, "faults": 100, "boundaries": 20,
 AUTOMATED = {"installation", "statistics", "faults", "boundaries", "mutations"}
 
 
+def auxiliary_sources():
+    """Bind the installed UI and remote worker too, without importing Streamlit."""
+    import importlib
+    result = {}
+    for name in ("cra_workspace", "cra_remote"):
+        root = Path(importlib.import_module(name).__file__).parent
+        for path in sorted(root.rglob("*.py")):
+            result[name + "/" + path.relative_to(root).as_posix()] = sha(path)
+    return result
+
+
 def observations_hash(files):
     """Stable automatic-observation subject, excluding later expert declarations."""
     return digest({path:signature for path,signature in files.items() if path.startswith(("statistics/","faults/","boundaries/","cancellation/","software/")) or path in {"candidate.json","environment.txt","reports/software.json",*("reports/"+name+".json" for name in AUTOMATED)} or path.endswith(".whl")})
@@ -55,7 +66,10 @@ def verify_bundle(root, trust_store=None):
         require(candidate["wheel"] in files and sha(wheel) == candidate["wheel_sha256"], "Candidate wheel mismatch")
         with ZipFile(wheel) as bundle:
             package = {name.rsplit("/", 1)[1]: hashlib.sha256(bundle.read(name)).hexdigest() for name in bundle.namelist() if name.startswith("cra_engine/") and name.endswith(".py") and name.count("/") == 1}
+            auxiliary = {name: hashlib.sha256(bundle.read(name)).hexdigest() for name in bundle.namelist() if name.startswith(("cra_workspace/", "cra_remote/")) and name.endswith(".py")}
         require(digest(package) == candidate["source_tree_sha256"] == source_fingerprint(), "Evidence belongs to different engine source")
+        if auxiliary:
+            require(digest(auxiliary) == candidate.get("auxiliary_sources_sha256") == digest(auxiliary_sources()), "Evidence belongs to different workspace/worker source")
         trust = load(trust_store) if trust_store else {}
         if trust_store:
             require(root not in Path(trust_store).resolve().parents, "Reviewer trust store must be external to submitted evidence")

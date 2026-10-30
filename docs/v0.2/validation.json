@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-28T04:11:33.915156+00:00",
+  "version": "0.2.0a1",
+  "python": "3.12.14",
+  "platform": "macOS",
+  "software_tests": {
+    "tests": 120,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "legacy_python_3_9_tests": {
+    "tests": 45,
+    "passed": 45
+  },
+  "data": "synthetic_only",
+  "model_validation": "loopback HTTP fixture; no live paid model calls",
+  "isolation": "macOS Seatbelt integration passed",
+  "crossref_live_smoke": {
+    "public_metadata_items": 2,
+    "fulltext_claims_verified": 0
+  },
+  "docx_visual_qa": {
+    "pages": 3,
+    "all_pages_inspected": true
+  },
+  "real_pilots_completed": 0,
+  "release_eligible": false,
+  "unmeasured_targets": [
+    "human active time reduction",
+    "expert literature support accuracy",
+    "real-project recovery rate"
+  ],
+  "environment": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "pandas": "2.3.3",
+    "statsmodels": "0.14.6",
+    "python-docx": "1.2.0",
+    "pypdf": "6.21.3",
+    "pytest": "9.2.0"
+  },
+  "source_tree_sha256": "2f44aee31dceea20c4a4dd5ede70fe06e2f4b8ab0ab169cb3dd1e35ebeb78ffc"
+}

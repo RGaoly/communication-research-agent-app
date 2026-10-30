@@ -1,6 +1,6 @@
 # 研究工作台：使用、部署与能力边界
 
-版本：0.2.0a5.dev3，开发预览。此页面接入真实研究引擎，不包含预设研究结果。
+版本：0.2.0a5.dev5，开发预览。此页面接入真实研究引擎，不包含预设研究结果。
 
 **已上线地址：** https://communication-research-agent-rgaoly.streamlit.app/
 

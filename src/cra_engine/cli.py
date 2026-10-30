@@ -89,7 +89,7 @@ def confirm(store, scope, reviewer, note):
 
 
 def reproduce(store):
-    from .isolation import execute
+    from .execution import execute
     from .runtime import sync
     sync(store)
     require(store.approved("protocol"), "Current frozen protocol required")
@@ -97,7 +97,8 @@ def reproduce(store):
     require(expected is not None, "No fresh analysis to reproduce")
     brief = store.get("brief")
     csv_path, book_path = (within(store.root, brief["data"][k]) for k in ("csv", "codebook"))
-    actual = execute(store, "analysis", {"csv_path": str(csv_path), "book_path": str(book_path), "protocol": store.get("protocol", fresh=True), "min_cell": brief["limits"]["min_cell"]}, [csv_path, book_path])["result"]
+    execution = execute(store, "analysis", {"csv_path": str(csv_path), "book_path": str(book_path), "protocol": store.get("protocol", fresh=True), "min_cell": brief["limits"]["min_cell"]}, [csv_path, book_path], fresh=True)
+    actual = execution["result"]
     differences = []
     def compare(a, b, path=""):
         if finite(a) and finite(b):
@@ -112,7 +113,7 @@ def reproduce(store):
         elif a != b:
             differences.append(path)
     compare(expected, actual)
-    report = {"passed": not differences, "differences": differences, "relative_tolerance": 1e-7, "absolute_tolerance": 1e-9}
+    report = {"passed": not differences, "differences": differences, "relative_tolerance": 1e-7, "absolute_tolerance": 1e-9, "remote_receipt": execution.get("remote_receipt")}
     save(store.root / "reports/reproduction.json", report)
     with store.tx():
         store.event("reproduced", {"passed": report["passed"]})
@@ -166,7 +167,7 @@ def main(argv=None):
                 sync(store)
                 output = status(store)
             elif args.command == "doctor":
-                from .isolation import doctor
+                from .execution import doctor
                 output = doctor(store)
             elif args.command == "model-test":
                 from .models import ModelAdapter

@@ -164,7 +164,7 @@ def export_package(store, working=False, include_data=False):
     # Ship the actual recipe sources and environment; no credentials or control DB.
     recipe_dir = target / "recipe/cra_engine"
     recipe_dir.mkdir(parents=True)
-    for name in ("__init__.py", "common.py", "statistics.py", "worker.py", "isolation.py"):
+    for name in analysis["recipe_identity"]["sources"]:
         shutil.copyfile(Path(__file__).parent / name, recipe_dir / name)
     atomic(target / "reproduce.py", '''import sys,json,hashlib,math
 from pathlib import Path

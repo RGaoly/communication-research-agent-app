@@ -1,6 +1,6 @@
 [project]
 name = "communication-research-agent-tools"
-version = "0.2.0a5.dev3"
+version = "0.2.0a5.dev5"
 description = "Offline consistency checks and stage gates for communication research"
 requires-python = ">=3.9"
 dependencies = []
@@ -19,6 +19,7 @@ ui = ["streamlit==1.66.1", "pyreadstat>=1.2,<2"]
 cra = "cra_engine.cli:main"
 cra-accept = "cra_acceptance.cli:main"
 cra-gui = "cra_engine.gui:main"
+cra-worker = "cra_remote.worker:main"
 
 [tool.setuptools.package-data]
 cra_engine = ["web/*.html", "web/*.css", "web/*.js"]

@@ -1,1 +1,2 @@
+-c deploy/worker/statistics-constraints.txt
 -e .[engine,ui]

@@ -59,7 +59,8 @@ def verify_package(path):
         if identity is not None:
             require(isinstance(identity, dict) and identity.get("id") == "python-survey-v2", "Unknown statistical recipe identity")
             sources = identity.get("sources", {})
-            require(isinstance(sources, dict) and set(sources) == {"__init__.py", "common.py", "statistics.py", "worker.py", "isolation.py"}, "Statistical recipe source set incomplete")
+            baseline = {"__init__.py", "common.py", "statistics.py", "worker.py", "isolation.py"}
+            require(isinstance(sources, dict) and set(sources) in (baseline, baseline | {"schema.py"}), "Statistical recipe source set incomplete")
             require(all("recipe/cra_engine/"+name in files and hashlib.sha256(files["recipe/cra_engine/"+name]).hexdigest() == signature for name, signature in sources.items()), "Statistical recipe source differs from executed analysis")
             require(identity.get("packages") == analysis.get("environment") and isinstance(identity.get("python_version"), str), "Statistical environment binding differs")
         require(hashlib.sha256(files["codebook.json"]).hexdigest() == analysis["codebook_sha256"], "Codebook differs from analysis input")

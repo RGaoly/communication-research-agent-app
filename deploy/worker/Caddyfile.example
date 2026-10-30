@@ -1,0 +1,28 @@
+{
+    servers {
+        timeouts {
+            read_header 10s
+            read_body 40s
+            write 45s
+            idle 30s
+        }
+    }
+}
+
+stats.example.org {
+    request_body {
+        max_size 48MB
+    }
+    @api path /v1/health /v1/jobs/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8781 {
+            transport http {
+                dial_timeout 3s
+                response_header_timeout 35s
+            }
+        }
+    }
+    respond 404
+    # Access logging intentionally omitted: no auth headers, request bodies or
+    # tenant job IDs should enter general proxy access logs.
+}

@@ -1,0 +1,118 @@
+{
+  "candidate_version": "0.2.0a5.dev1",
+  "code_commit": "8e0ff2a2bd146fb5412300da8f9cf007401d6d88",
+  "candidate_wheel_sha256": "3c9752c169745f2cd5b5bd1ef9c2c0356a4c82451ebe57c8d962364f6e9b785c",
+  "release_eligible": false,
+  "systems": {
+    "linux": {
+      "software_tests": {
+        "tests": 191,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "software_xml_sha256": "575bb4673870df4f3acaef59849c0184ac6a9f4075ca9f0415685bc8a523f2da",
+      "software_report_sha256": "5a6ae7128bf6586c15ed4030dfd2e36ec05ea0c936c56bd545348d2247634a50",
+      "automated_observations_sha256": "222e1bbe1a26503e96f9000650ae641192c1d7dc41871b5b40c72aae52d44892",
+      "automated_engineering_passed": true,
+      "software_evidence_passed": true,
+      "independent_human_operator": false,
+      "release_eligible": false,
+      "suites": {
+        "installation": {
+          "status": "passed",
+          "cases": 1,
+          "minimum": 1
+        },
+        "statistics": {
+          "status": "passed",
+          "cases": 30,
+          "minimum": 30
+        },
+        "faults": {
+          "status": "passed",
+          "cases": 100,
+          "minimum": 100
+        },
+        "boundaries": {
+          "status": "passed",
+          "cases": 23,
+          "minimum": 20
+        },
+        "mutations": {
+          "status": "passed",
+          "cases": 3,
+          "minimum": 3
+        },
+        "literature": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "live_model": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "pilots": {
+          "status": "pending",
+          "reason": "report unavailable"
+        }
+      },
+      "ci_url": "https://github.com/RGaoly/communication-research-agent/actions/runs/40717585692"
+    },
+    "macos": {
+      "software_tests": {
+        "tests": 191,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "software_xml_sha256": "5e9ecc7ce517d17d2ad521e148999d4706aecb402dd6c5e4fbde10d7a4726319",
+      "software_report_sha256": "983ccc2504dea79180a67781a208a87efdad2d15b9ba261f0f54c2f9842c5710",
+      "automated_observations_sha256": "ee6324a835102974088d41993720516910fa57f0bd2e587df0e090db6ac6ecba",
+      "automated_engineering_passed": true,
+      "software_evidence_passed": true,
+      "independent_human_operator": false,
+      "release_eligible": false,
+      "suites": {
+        "installation": {
+          "status": "passed",
+          "cases": 1,
+          "minimum": 1
+        },
+        "statistics": {
+          "status": "passed",
+          "cases": 30,
+          "minimum": 30
+        },
+        "faults": {
+          "status": "passed",
+          "cases": 100,
+          "minimum": 100
+        },
+        "boundaries": {
+          "status": "passed",
+          "cases": 23,
+          "minimum": 20
+        },
+        "mutations": {
+          "status": "passed",
+          "cases": 3,
+          "minimum": 3
+        },
+        "literature": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "live_model": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "pilots": {
+          "status": "pending",
+          "reason": "report unavailable"
+        }
+      }
+    }
+  },
+  "limits": "Developer-run automation only. Raw XML and case identities do not authenticate actual execution or scientific correctness. Independent operator, real two-expert literature, held-out model research, and three real accepted pilots are missing. Alpha a4 remains unchanged."
+}

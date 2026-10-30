@@ -33,6 +33,18 @@ def validate_brief(value):
     permissions = value.get("permissions", {})
     require(all(type(permissions.get(k)) is bool for k in ("model", "literature_network")), "Explicit permission booleans required")
     require(isinstance(permissions.get("allowed_hosts"), list) and all(isinstance(h, str) and h and "/" not in h for h in permissions["allowed_hosts"]), "Invalid allowed hosts")
+    require(type(permissions.get("remote_statistics", False)) is bool, "Explicit remote statistics permission required")
+    execution = value.get("execution", {"backend": "local"})
+    require(isinstance(execution, dict) and execution.get("backend") in ("local", "remote"), "Unknown statistics execution backend")
+    if execution["backend"] == "local":
+        require(set(execution) == {"backend"} and not permissions.get("remote_statistics", False), "Local statistics cannot grant remote transfer")
+    else:
+        require(set(execution) == {"backend", "endpoint", "identity_hash"}, "Only endpoint and recipe identity may be persisted; no worker secrets")
+        endpoint = urlsplit(execution["endpoint"])
+        require(endpoint.scheme == "https" or endpoint.scheme == "http" and endpoint.hostname == "127.0.0.1", "Worker requires HTTPS; loopback HTTP for synthetic tests only")
+        require(endpoint.hostname and not endpoint.username and not endpoint.password and not endpoint.query and not endpoint.fragment and endpoint.path in ("", "/"), "Invalid worker origin")
+        import re
+        require(isinstance(execution["identity_hash"], str) and re.fullmatch(r"[a-f0-9]{64}", execution["identity_hash"]), "Worker identity must be frozen")
     limits = value.get("limits", {})
     require(finite(limits.get("max_cost")) and limits["max_cost"] >= 0, "Invalid budget")
     for key, minimum, maximum in (("max_seconds", 1, 86400), ("max_parallel", 1, 2), ("max_revisions", 0, 2), ("min_cell", 2, 10000)):
@@ -74,6 +86,15 @@ def validate_protocol(value, book, corpus):
     require(isinstance(candidates, list) and len(candidates) <= 3, "At most three candidate directions")
     for candidate in candidates:
         require(all(isinstance(candidate.get(k), str) and candidate[k] for k in ("rq", "theory_tension", "measurement", "boundary")), "Each candidate needs theory, measurement and boundary")
+    validate_analysis_contract(value, book)
+    return value
+
+
+def validate_analysis_contract(value, book):
+    """Statistical contract only; never certifies literature or human approval."""
+    require(isinstance(value, dict) and value.get("schema_version") == 2, "Protocol schema_version must be 2")
+    require(value.get("inference") == "association", "Survey adapter supports association only")
+    require(value.get("missing") == "complete_case", "Only explicit complete-case strategy supported")
     columns = book.get("columns", {})
     require(isinstance(value.get("models"), list) and value["models"], "At least one approved model required")
     ids = set()

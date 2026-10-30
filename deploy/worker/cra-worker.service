@@ -1,0 +1,44 @@
+[Unit]
+Description=Communication Research Agent fixed-recipe statistics worker
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=cra-worker
+Group=cra-worker
+WorkingDirectory=/opt/cra-worker
+StateDirectory=cra-worker
+StateDirectoryMode=0700
+# The target Alibaba Cloud Linux image ships systemd 239, before
+# LoadCredential was introduced. Keep the token root-owned and group-readable
+# only by cra-worker (0640); the service account cannot replace it.
+ExecStartPre=/opt/cra-worker/.venv/bin/cra-worker --root /var/lib/cra-worker --token-file /etc/cra-worker/token --check
+ExecStart=/opt/cra-worker/.venv/bin/cra-worker --root /var/lib/cra-worker --token-file /etc/cra-worker/token --port 8781
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/cra-worker
+RestrictSUIDSGID=yes
+# Namespaces are required for unprivileged bubblewrap. Do not add a generic
+# namespace/syscall denylist or disable host security to make a failed probe pass.
+MemoryMax=1400M
+CPUQuota=200%
+TasksMax=128
+LimitNOFILE=1024
+Environment=PYTHONDONTWRITEBYTECODE=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

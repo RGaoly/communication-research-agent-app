@@ -1,0 +1,117 @@
+{
+  "candidate_version": "0.2.0a5.dev0",
+  "code_commit": "f9d1a22547f1011383df47c7f715fc960d738be3",
+  "candidate_wheel_sha256": "4b3254bf9120b5aaa6cc7a4f7eb445d095e963505af77a28c1be8b936e16136b",
+  "release_eligible": false,
+  "independent_human_acceptance": false,
+  "systems": {
+    "linux": {
+      "software_tests": {
+        "tests": 180,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      "software_xml_sha256": "74bfda33e7c03942e24ce2282a25c9504ee8f4bf8044a008173a867183e8dd1a",
+      "engineering_result_sha256": "8594a14f05c76bbd05812a610d48f7a8287d5e9ea12100282fca018285f71386",
+      "automated_observations_sha256": "e2588fd18a78747620aa4c5148e1070e04d13267614aeaa1f7897ec818dd5ab8",
+      "suites": {
+        "installation": {
+          "status": "passed",
+          "cases": 1,
+          "minimum": 1
+        },
+        "statistics": {
+          "status": "passed",
+          "cases": 30,
+          "minimum": 30
+        },
+        "faults": {
+          "status": "passed",
+          "cases": 100,
+          "minimum": 100
+        },
+        "boundaries": {
+          "status": "passed",
+          "cases": 23,
+          "minimum": 20
+        },
+        "mutations": {
+          "status": "passed",
+          "cases": 3,
+          "minimum": 3
+        },
+        "literature": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "live_model": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "pilots": {
+          "status": "pending",
+          "reason": "report unavailable"
+        }
+      },
+      "automated_engineering_passed": true,
+      "engineering_acceptance_passed": false,
+      "release_eligible": false,
+      "ci_url": "https://github.com/RGaoly/communication-research-agent/actions/runs/40711978196"
+    },
+    "macos": {
+      "software_tests": {
+        "tests": 180,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      "software_xml_sha256": "771830a8a8f2ff8332c14b31d9b7b6d9698e9b2d1585316e02916f6ad70cf9ee",
+      "engineering_result_sha256": "1ccf105e12b2c624f20cc66adbc10bfd5c15db1cc919bc1f5a34deecf6811e8e",
+      "automated_observations_sha256": "a01dbfd223aec0014b36efa94b14452b0d790e83de70de15b5fdae9b33774a71",
+      "suites": {
+        "installation": {
+          "status": "passed",
+          "cases": 1,
+          "minimum": 1
+        },
+        "statistics": {
+          "status": "passed",
+          "cases": 30,
+          "minimum": 30
+        },
+        "faults": {
+          "status": "passed",
+          "cases": 100,
+          "minimum": 100
+        },
+        "boundaries": {
+          "status": "passed",
+          "cases": 23,
+          "minimum": 20
+        },
+        "mutations": {
+          "status": "passed",
+          "cases": 3,
+          "minimum": 3
+        },
+        "literature": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "live_model": {
+          "status": "pending",
+          "reason": "report unavailable"
+        },
+        "pilots": {
+          "status": "pending",
+          "reason": "report unavailable"
+        }
+      },
+      "automated_engineering_passed": true,
+      "engineering_acceptance_passed": false,
+      "release_eligible": false
+    }
+  },
+  "limits": "Automated developer-run evidence only. Human CLI, two-expert literature, held-out live-model evaluation and three authorized real pilots remain pending. Published Alpha a4 evidence is unchanged."
+}

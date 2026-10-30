@@ -79,10 +79,22 @@ def manuscript(text):
 
 
 @st.cache_data(ttl=300, show_spinner="正在检查云端执行环境，不调用模型…")
-def hosting_environment(source_identity):
+def hosting_environment(source_identity, _remote=None):
     # This cached value contains host capabilities only, never project state,
     # materials, credentials or review declarations.
-    return environment.inspect_host()
+    return environment.inspect_host(_remote) if _remote is not None else environment.inspect_host()
+
+
+def operator_executor():
+    """Deployment-only credential; never a user model key or project field."""
+    from cra_remote.client import RemoteExecutor
+    endpoint, token = os.environ.get("CRA_WORKER_URL", ""), os.environ.get("CRA_WORKER_TOKEN", "")
+    try:
+        configured = st.secrets.get("statistics_worker", {})
+        endpoint, token = configured.get("url", endpoint), configured.get("token", token)
+    except (FileNotFoundError, KeyError): pass
+    if not endpoint and not token: return None
+    return RemoteExecutor(endpoint, token)
 
 
 def object_view(s, name):
@@ -118,7 +130,7 @@ def review_dialog(w, p, scope, challenge, s):
     st.subheader(SCOPES[scope])
     st.caption("这是你的项目内确认声明，不是身份认证、伦理批准或独立专家验收。")
     if scope == "authorization":
-        st.json({"question": s["brief"]["theme"], "objective": s["brief"]["objective"], "permissions": s["brief"]["permissions"], "model": s["brief"]["model"], "limits": s["brief"]["limits"], "processing": w.deployment})
+        st.json({"question": s["brief"]["theme"], "objective": s["brief"]["objective"], "permissions": s["brief"]["permissions"], "model": s["brief"]["model"], "limits": s["brief"]["limits"], "processing": w.deployment, "statistics_execution": s["brief"].get("execution", {"backend": "local"})})
         st.warning("允许模型运行后，系统可在这份预算与权限范围内继续研究调用。连接契约测试本身包含两次付费请求；暂停不会自动撤回已经发出的请求。")
     elif scope == "protocol":
         st.json(value(s, "protocol"))
@@ -205,7 +217,10 @@ def overview(w, p, s):
     with b: confirm_button(w, p, "protocol", s, disabled=value(s, "protocol") is None or not s["measurement_reviewed"])
     with c: confirm_button(w, p, "final", s, disabled=not state["readiness"]["ready_for_final"])
     a, b = st.columns([3, 1])
-    can_compute = w.deployment != "cloud" or st.session_state.get("cloud_environment", {}).get("passed", False)
+    capability = st.session_state.get("cloud_environment", {})
+    remote = s["brief"].get("execution", {}).get("backend") == "remote"
+    matching_backend = bool(capability.get("worker")) == remote
+    can_compute = w.deployment != "cloud" or capability.get("passed", False) and matching_backend
     if a.button("继续执行获批研究", type="primary", disabled=s["running"] or not s["files_ready"] or not can_compute, width="stretch"):
         if act(lambda: w.start(p), "后台已启动；完成、阻断或等待确认将如实显示。 "): st.rerun()
     if b.button("安全暂停", disabled=not s["running"], width="stretch"):
@@ -452,6 +467,26 @@ def deliver(w, p, s):
 
 def settings(w, p, s):
     st.title("模型与设置")
+    brief = s["brief"]
+    st.subheader("统计执行位置")
+    scope = brief.get("execution", {"backend": "local"})
+    st.text("当前：" + ("独立服务器 · " + scope["endpoint"] if scope["backend"] == "remote" else "工作台所在机器"))
+    if w.remote_executor is not None:
+        st.text("可用独立服务器：" + w.remote_executor.endpoint)
+        st.caption("只发送已核查的分析CSV、代码本与冻结方案；原始上传文件、私人文献、模型密钥及人工批准记录不会发送。服务器材料默认约24小时后清理，保留不含材料的任务索引以防重复执行；备份不包含服务器凭证。")
+        capability = st.session_state.get("cloud_environment", {})
+        from cra_remote.protocol import identity
+        from cra_engine.common import digest
+        expected = digest(identity())
+        with st.form("execution_scope_" + p):
+            enabled = st.checkbox("本项目使用上述独立统计服务器", value=scope["backend"] == "remote")
+            consent = st.checkbox("我有权并明确同意将本项目经核查的分析副本上传到上述服务器。")
+            submitted = st.form_submit_button("保存统计执行范围", disabled=s["running"])
+        if submitted:
+            if act(lambda: w.configure_execution(p, enabled, consent, expected), "统计执行范围已保存，请重新审阅项目授权。"):
+                hosting_environment.clear(); st.rerun()
+    else:
+        st.info("尚未接入独立统计服务器。管理员完成部署后，这里会显示真实地址与项目授权选项。")
     key_field = "api_key_input_" + p
     if st.session_state.pop("clear_api_key_input_" + p, False): st.session_state[key_field] = ""
     with st.expander("运行环境检查（不调用模型）", expanded=s["environment"] is not None and not s["environment"]["passed"]):
@@ -576,16 +611,22 @@ def main():
             owner = hashlib.sha256((str(root.resolve()) + ":" + str(getattr(os, "getuid", lambda: "local-user")())).encode()).hexdigest()[:32]
         st.session_state.workspace = Workspace(root, owner=owner, deployment=mode)
     w = st.session_state.workspace
+    try: w.remote_executor = operator_executor()
+    except EngineError:
+        w.remote_executor = None
+        st.error("独立执行服务配置不完整或地址不符合要求；不会自动改用其他服务器。")
     st.caption("开发预览 · " + ("云端处理" if w.deployment == "cloud" else "本机处理") + " · 尚未完成正式科研发布验收")
     if w.deployment == "cloud":
         from cra_engine.common import digest, sha
         from cra_engine.statistics import recipe_identity
-        identity = digest({"recipe": recipe_identity(), "diagnostic": sha(Path(environment.__file__))})
-        capability = hosting_environment(identity)
+        identity = digest({"recipe": recipe_identity(), "diagnostic": sha(Path(environment.__file__)), "worker": w.remote_executor.endpoint if w.remote_executor else None})
+        capability = hosting_environment(identity, w.remote_executor)
         st.session_state.cloud_environment = capability
         if not capability["passed"]:
             st.warning("当前云端仅提供材料与方案工作区：自动统计隔离自检未通过，研究执行已禁用。分析请在已验证的本机环境完成，或配置经验证的独立执行服务器。")
             st.link_button("查看本机运行与恢复说明", "https://github.com/RGaoly/communication-research-agent-app/blob/main/docs/STREAMLIT_WORKSPACE_ZH.md")
+        elif w.remote_executor:
+            st.info("独立执行服务器隔离自检通过。每个项目仍需在“模型与设置”中允许分析副本传输，并确认当前项目授权后才能运行。")
     with st.sidebar:
         st.markdown('<div class="brand">COMMUNICATION<br>RESEARCH AGENT</div>', unsafe_allow_html=True)
         st.caption("开发预览 · 云端处理" if w.deployment == "cloud" else "开发预览 · 本机处理")

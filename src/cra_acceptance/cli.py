@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import hashlib
 
 from cra_engine.common import EngineError, digest, load, save, sha, source_fingerprint, require
-from cra_engine.evidence_bundle import verify_bundle
+from cra_engine.evidence_bundle import verify_bundle, auxiliary_sources
 from cra_engine.package_check import verify_package
 
 
@@ -27,7 +27,9 @@ def run(wheel, output, software_junit=None):
     with ZipFile(wheel) as archive:
         engine = {name.rsplit("/", 1)[1]: hashlib.sha256(archive.read(name)).hexdigest() for name in archive.namelist() if name.startswith("cra_engine/") and name.endswith(".py") and name.count("/") == 1}
         harness = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in archive.namelist() if name.startswith("cra_acceptance/") and name.endswith(".py")}
+        auxiliary = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in archive.namelist() if name.startswith(("cra_workspace/", "cra_remote/")) and name.endswith(".py")}
     require(digest(engine) == source_fingerprint(), "Installed engine differs from candidate wheel")
+    require(auxiliary and digest(auxiliary) == digest(auxiliary_sources()), "Installed workspace/worker differs from candidate wheel")
     import cra_engine
     with ZipFile(wheel) as archive:
         for name in archive.namelist():
@@ -37,7 +39,7 @@ def run(wheel, output, software_junit=None):
     installed = Path(cra_acceptance.__file__).parent
     require(all(sha(installed/Path(name).name) == signature for name, signature in harness.items()), "Installed acceptance harness differs from candidate wheel")
     require("site-packages" in str(installed), "Run acceptance from a clean wheel install, not editable source checkout")
-    save(root/"candidate.json", {"wheel": candidate.name, "wheel_sha256": sha(candidate), "source_tree_sha256": digest(engine), "harness_sha256": digest(harness), "python": sys.executable, "version": importlib.metadata.version("communication-research-agent-tools"), "platform": sys.platform, "independent_human_operator": False})
+    save(root/"candidate.json", {"wheel": candidate.name, "wheel_sha256": sha(candidate), "source_tree_sha256": digest(engine), "auxiliary_sources_sha256": digest(auxiliary), "harness_sha256": digest(harness), "python": sys.executable, "version": importlib.metadata.version("communication-research-agent-tools"), "platform": sys.platform, "independent_human_operator": False})
     environment = subprocess.run([sys.executable, "-m", "pip", "freeze", "--all"], capture_output=True, text=True, timeout=30)
     (root/"environment.txt").write_text(environment.stdout)
     if software_junit:
