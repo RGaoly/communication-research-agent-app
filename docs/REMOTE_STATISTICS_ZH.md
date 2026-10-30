@@ -44,11 +44,38 @@
 - 只读系统目录、私有临时目录、内存/CPU/进程数限制，以及停止时终止整个服务进程组。
 - 单任务执行，最多4项排队/运行任务，每项最多300秒。最多128项未过期任务、100000条不含数据的历史索引；超额拒绝。
 
-模板须在目标机器用 `systemd-analyze verify` 检查，并在 **实际 unit 限制下** 重做探针。独立终端的成功不能代表 unit 内成功。当前没有目标服务器，不能声称此模板已在生产验证。
+模板须在部署目标上用 `systemd-analyze verify` 检查，并在 **实际 unit 限制下** 重做探针。独立终端的成功不能代表 unit 内成功。本仓库已有一台阿里云 Linux 3 开发预览服务器的隔离记录；该记录不代表其他环境或正式科研发布通过。
 
 ## HTTPS
 
-服务只监听 `127.0.0.1:8781`。使用 `deploy/worker/Caddyfile.example` 在域名443端口提供 TLS，部署前替换域名并执行 `caddy validate`。仅开放必要管理端口和HTTPS，不把8781开放到公网。
+服务只监听 `127.0.0.1:8781`。有域名时可以使用 `deploy/worker/Caddyfile.example`。Caddy 默认自动创建的本地 CA 证书不会被外部 Streamlit 服务信任；当前 ECS 使用公网 IP，并显式配置了由公信 CA 签发的短期 IP 证书。[Caddy 自动 HTTPS 说明](https://caddyserver.com/docs/automatic-https)
+
+IP 方案使用 Let's Encrypt 的短期 IP 证书和 TLS-ALPN-01 验证。该验证只需要 TCP 443；IP 证书有效期为160小时，必须自动续期。[Let’s Encrypt 验证方式](https://letsencrypt.org/docs/challenge-types/) · [IP证书期限](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)。`deploy/worker/Caddyfile.ip-example` 只绑定 `:443`（也兼容不发送 SNI 的 IP 客户端），仅代理 `/v1/health` 和 `/v1/jobs/*`，其余路径返回404；部署前须安装匹配 IP SAN 的公信证书。
+
+安装官方 `lego` Linux amd64 二进制前，核对对应 GitHub Release 的 SHA256。将 `cra-renew-ip-certificate.sh`、`cra-install-ip-certificate.sh` 安装为 root 拥有、不可被服务用户修改的 `/usr/local/sbin/` 文件；配置 root-only `/etc/cra-acme/config`：
+
+```sh
+PUBLIC_IP=你的ECS公网IP
+```
+
+可选填写 `ACME_EMAIL` 作为 ACME 账户联系信息；省略时不向证书机构提供个人邮箱。
+
+将配置文件放入 `/etc/caddy/Caddyfile`，创建 `/etc/caddy/tls`，然后首次运行：
+
+```sh
+set -a
+. /etc/cra-acme/config
+set +a
+/usr/local/bin/lego run \
+  --server https://acme-v02.api.letsencrypt.org/directory \
+  --email "${ACME_EMAIL:-}" --accept-tos --path /var/lib/cra-acme \
+  --domains "$PUBLIC_IP" --tls --profile shortlived --renew-days 4 \
+  --pre-hook '/usr/bin/systemctl stop caddy' \
+  --deploy-hook /usr/local/sbin/cra-install-ip-certificate.sh \
+  --post-hook '/usr/bin/systemctl start caddy'
+```
+
+命令使用 lego 的部署钩子校验 IP SAN、证书与私钥匹配，并检查 Caddy 配置；只有实际签发/续期时才短暂停止 Caddy。无变更的检查不造成停机。安装 `cra-ip-certificate-renew.service` 和 `.timer` 后，每12小时检查一次续期，开机10分钟后也会检查。首次签发和真实续期必须等 ECS 安全组只开放所需的入站 TCP 443 后进行。TCP 80 和8781均不需要对公网开放。
 
 客户端验证公网 IP 和 TLS 域名，并直接连接已核验的 IP，拒绝重定向转发凭证。正式配置不接受内网/元数据地址、HTTP、任意端口、URL 用户密码。环回 HTTP 只用于自动化模拟测试，不提供网页开关。
 

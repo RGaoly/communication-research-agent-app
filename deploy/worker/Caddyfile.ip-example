@@ -1,7 +1,7 @@
 # Example for a static, publicly trusted IP certificate obtained separately
 # with an ACME client that supports IP certificates and TLS-ALPN-01.
 # Place the certificate and key at these paths with root:caddy ownership and
-# mode 0640. Replace the documentation-only IP before deployment.
+# mode 0640. The :443 listener accepts IP clients that omit SNI.
 {
 	admin off
 	auto_https disable_redirects
@@ -15,7 +15,7 @@
 	}
 }
 
-198.51.100.10 {
+:443 {
 	tls /etc/caddy/tls/fullchain.pem /etc/caddy/tls/privkey.pem
 	request_body {
 		max_size 48MB

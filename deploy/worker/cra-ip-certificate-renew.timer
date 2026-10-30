@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the worker's short-lived public IP TLS certificate twice daily
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=12h
+Persistent=true
+Unit=cra-ip-certificate-renew.service
+
+[Install]
+WantedBy=timers.target

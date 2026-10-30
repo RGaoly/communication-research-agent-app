@@ -1,5 +1,14 @@
 # 远程统计服务 dev5 部署记录
 
+## 公网接入补充记录（2026-10-30）
+
+- 用户授权为 ECS 安全组新增唯一公网服务入口：IPv4 TCP 443，来源 `0.0.0.0/0`，描述 `cra-worker-https`。没有新增 TCP 80 或 8781 规则；worker 仍只监听 `127.0.0.1:8781`。
+- 使用已校验 SHA256 的官方 lego 5.5.2 Linux amd64 发布包，通过 TLS-ALPN-01 先完成 staging 验证，再签发 Let's Encrypt 短期 IP 证书。证书 SAN 与当前公网 IP 匹配，TLS 客户端校验结果为 0，证书有效期约160小时。
+- Caddy 2.11.7 已启用并只监听 `*:443`；IP 客户端不发送 SNI 时也能完成握手。公网 `/v1/health` 未带凭证返回401；使用轮换后的本地服务凭证从外部请求返回200，隔离健康检查 `passed=true`，网络、控制目录读取和越界写入探针均被拒绝。
+- Caddy 和每12小时检查证书的 systemd timer 均为 enabled/active；systemd unit 校验通过。公网 TCP 80 探测超时，8781 仍为 loopback-only。
+- 安全组原有 SSH/22、RDP/3389 和 ICMP 入方向规则仍为 `0.0.0.0/0`。本轮只按授权新增 HTTPS/443，没有修改既有规则；应由账号所有者决定是否收紧 SSH 来源并删除不需要的 RDP 规则。
+- Streamlit Cloud Secrets 已保存 worker URL 与轮换后的服务凭证。云端工作台确认独立 worker 隔离自检通过；该健康检查不包含研究材料。另建了一个纯模拟 UI 项目验证部署后的页面可正常工作，但没有同意将该项目切换到远程执行，也没有上传分析数据、私人文献或模型 API Key。因此仅记录为云端连接和页面冒烟通过，不代表完整远程分析闭环验收。
+
 ## 已验证
 
 - 阿里云 Linux 3 上以 `cra-worker` 非 root 服务账号启动；服务端口仅监听回环地址。
@@ -12,12 +21,11 @@
 
 ## 尚未完成
 
-- 公网 TLS 入口尚未配置。已安装 Caddy，但未启用服务，也未绑定公网端口。公网 IP 可通过 Let's Encrypt 的 TLS-ALPN-01 在 TCP 443 验证；因此这套方案不需要开放 TCP 80。只有用户决定继续云端连接后，才需在 ECS 安全组添加 TCP 443 入方向；TCP 8781 始终只监听 `127.0.0.1`。来源：[Let's Encrypt challenge types](https://letsencrypt.org/docs/challenge-types/)、[IP and short-lived certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)。
-- Streamlit secrets 尚未配置，因此在线前端尚不能连接该 worker。
+- 项目级远程统计仍需研究者在“模型与设置”中明确选择服务器、同意上传经核查的分析副本，并完成项目授权与计划冻结。本次未替研究者签署这些授权。
 - 尚未完成真实模型盲测、独立工程验收、双专家文献核查或三个真实项目试点；本记录不能作为正式科研发布验收。
 - 在独立 Python 3.12 环境完成本机全量 pytest：宿主系统权限下 `245 passed, 5 skipped`。受 Codex 受限进程直接运行时，19 项嵌套 macOS Seatbelt 用例被父级沙盒拒绝；使用宿主权限重跑远程隔离组后 `22 passed`，全量宿主权限运行通过。GitHub Actions 的独立 Linux 构建也成功。
-- 公共 Streamlit 页面真实浏览器冒烟：填写合成项目名称、问题和边界后成功建立项目；概览显示项目输入，实际事件表出现 `initialized` 记录。没有上传文件、真实研究材料、模型密钥或服务凭证。云端页面明确显示远程统计未配置并禁用研究执行。
-- ECS Caddy 示例配置经服务器上的 Caddy 2.11.7 `caddy adapt` 检查通过，生成的监听地址只有 `:443`，转发范围限于 `/v1/health` 和 `/v1/jobs/*`，其余路径返回 404。Caddy 服务仍 disabled/inactive；静态证书文件尚未签发，因而还未提供公网 HTTPS。
+- 公共 Streamlit 页面真实浏览器冒烟：填写合成项目名称、问题和边界后成功建立模拟项目；没有上传文件、真实研究材料或模型密钥。配置完成后，工作台连接独立 worker 的隔离健康检查通过。项目默认仍使用本机工作台执行位置；未提交远程数据传输同意、人工项目授权或研究计划冻结。
+- ECS Caddy 配置只监听 `:443`，转发范围限于 `/v1/health` 和 `/v1/jobs/*`，其余路径返回 404。证书、公网监听与自动续期已在上方补充记录验证。
 
 ## 数据边界
 

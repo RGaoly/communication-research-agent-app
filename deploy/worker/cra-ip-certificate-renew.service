@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew the worker's short-lived public IP TLS certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cra-renew-ip-certificate.sh
+TimeoutStartSec=300s
