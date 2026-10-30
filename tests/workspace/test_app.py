@@ -76,3 +76,45 @@ def test_cloud_upload_controls_require_consent(tmp_path, monkeypatch):
     assert next(b for b in app.button if b.label == "继续执行获批研究").disabled
     assert workspace.snapshot(p)["files_ready"]
     assert workspace.snapshot(p)["status"]["budget"]["calls"] == 0
+
+
+def test_hot_upgrade_preserves_records_but_waits_for_old_task_and_discards_key(tmp_path, monkeypatch):
+    from cra_engine.common import digest
+    from cra_workspace.service import Workspace
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "hot-upgrade"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    source = Path(__file__).resolve().parents[2] / "streamlit_app.py"
+    app = AppTest.from_file(str(source), default_timeout=15).run()
+    original = app.session_state["workspace"]
+    p = original.create("Synthetic upgrade fixture", "Preserve actual saved input", synthetic=True)["project_id"]
+    original.import_data(p, "fixture.csv", b"x,y\n1,2\n2,3\n")
+    config = digest(original.snapshot(p)["brief"]["model"])
+    original.credentials.put(p, config, "SYNTHETIC-KEY-NEVER-SENT")
+    class SyntheticThread:
+        alive = True
+        def is_alive(self): return self.alive
+    thread = SyntheticThread()
+    class LegacySession:
+        # UI migration double, not an actual research execution or approval.
+        directory = original.directory
+        deployment = original.deployment
+        credentials = original.credentials
+        _threads = {p: thread}
+        def pause(self, project): return original.pause(project)
+    app.session_state["workspace"] = LegacySession()
+    app.session_state["project"] = p
+    app.run()
+    assert not app.exception
+    assert any("旧任务正在安全停止" in item.value for item in app.warning)
+    assert not isinstance(app.session_state["workspace"], Workspace)
+    assert original.credentials.get(p, config) is None
+    thread.alive = False
+    next(b for b in app.button if b.label == "检查旧任务是否已停止").click().run()
+    assert not app.exception
+    migrated = app.session_state["workspace"]
+    assert isinstance(migrated, Workspace)
+    assert migrated.directory == original.directory
+    s = migrated.snapshot(p)
+    assert s["brief"]["theme"] == "Preserve actual saved input"
+    assert s["materials"]["data"][-1]["records"] == 2
+    assert not s["has_session_key"] and not s["status"]["approvals"]["authorization"]

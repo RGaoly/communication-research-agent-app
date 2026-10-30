@@ -522,6 +522,24 @@ def main():
     stylesheet()
     if "next_route" in st.session_state:
         st.session_state.route = st.session_state.pop("next_route")
+    previous = st.session_state.get("workspace")
+    if previous is not None and not isinstance(previous, Workspace):
+        # A live Streamlit code update can retain an instance of the previous
+        # class. Keep its project namespace, never its credential/review vault.
+        for folder in previous.directory.iterdir():
+            if folder.is_dir(): previous.credentials.clear(folder.name)
+        active = [(p, thread) for p, thread in previous._threads.items() if thread.is_alive()]
+        if active:
+            if st.session_state.get("upgrade_pause_requested") != id(previous):
+                for project, _ in active: previous.pause(project)
+                st.session_state.upgrade_pause_requested = id(previous)
+            st.warning("应用版本已更新，旧任务正在安全停止。已清除会话密钥；研究记录保留，待停止后继续。")
+            if st.button("检查旧任务是否已停止"): st.rerun()
+            st.stop()
+        st.session_state.workspace = Workspace(previous.directory.parent, owner=previous.directory.name, deployment=previous.deployment)
+        st.session_state.pop("pending_review", None)
+        st.session_state.pop("upgrade_pause_requested", None)
+        notice("应用版本已更新，研究记录已接管；模型密钥需重新填写，待确认窗口需重新打开。")
     if "workspace" not in st.session_state:
         mode = os.environ.get("CRA_DEPLOYMENT", "cloud")
         default_root = Path(tempfile.gettempdir()) / "cra-workspaces" if mode == "cloud" else Path.cwd() / ".cra-workspaces"
