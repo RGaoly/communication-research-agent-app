@@ -113,10 +113,13 @@ def reproduce(store):
         elif a != b:
             differences.append(path)
     compare(expected, actual)
-    report = {"passed": not differences, "differences": differences, "relative_tolerance": 1e-7, "absolute_tolerance": 1e-9, "remote_receipt": execution.get("remote_receipt")}
+    parents = ["brief", "dataset", "codebook", "protocol", "analysis", "statistics_recipe"]
+    report = {"passed": not differences, "differences": differences, "relative_tolerance": 1e-7, "absolute_tolerance": 1e-9, "remote_receipt": execution.get("remote_receipt"),
+              "evidence_hashes": {ident: store.object_hash(ident) for ident in parents}}
     save(store.root / "reports/reproduction.json", report)
     with store.tx():
-        store.event("reproduced", {"passed": report["passed"]})
+        store.put("reproduction", "verification_report", report, parents)
+        store.event("reproduced", {"passed": report["passed"], "evidence_hashes": report["evidence_hashes"]})
     return report
 
 

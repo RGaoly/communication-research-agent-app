@@ -691,6 +691,21 @@ def test_ui_reproduction_button_reexecutes_real_synthetic_analysis(tmp_path, mon
     assert report["relative_tolerance"] == 1e-7
     assert report["absolute_tolerance"] == 1e-9
     assert workspace.snapshot(project)["status"]["budget"]["calls"] == 0
+    current = workspace.snapshot(project)
+    assert report["evidence_hashes"]["analysis"] == current["objects"]["analysis"]["hash"]
+    assert current["objects"]["reproduction"]["value"] == report
+    assert not current["objects"]["reproduction"]["stale"]
+    # Viewing the report must not depend on transient widget-session results.
+    del app.session_state["reproduction_" + project]
+    app.radio[0].set_value("研究概览").run()
+    app.radio[0].set_value("分析结果").run()
+    assert any(x.value == "最近一次独立复现" for x in app.subheader)
+    assert not app.exception
+    workspace.save_brief(project, {"objective": "Changed synthetic scope invalidates previous verification"})
+    app.run()
+    assert not app.exception
+    assert workspace.snapshot(project)["objects"]["reproduction"]["stale"]
+    assert any("输入已经变化" in x.value for x in app.warning)
 
 
 def test_ui_billing_reconciliation_requires_confirmation_and_settles_uncertain_call(tmp_path, monkeypatch):

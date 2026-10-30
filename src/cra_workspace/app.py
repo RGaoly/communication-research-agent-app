@@ -427,8 +427,12 @@ def results(w, p, s):
             st.json({"fit": model["fit"], "diagnostics": model["diagnostics"], "reference": model["reference"], "clusters": model["clusters"]})
         if st.button("从授权输入独立重算并对账", disabled=s["running"]):
             report = act(lambda: w.reproduce(p), "已完成实际重算，请查看差异报告。")
-            if report: st.session_state["reproduction_" + p] = report
-        if "reproduction_" + p in st.session_state: st.json(st.session_state["reproduction_" + p])
+            if report:
+                st.session_state["reproduction_" + p] = report
+                st.rerun()
+    if "reproduction" in s["objects"]:
+        st.subheader("最近一次独立复现")
+        object_view(s, "reproduction")
     st.subheader("全部已执行规格")
     if s["specifications"]: st.json(s["specifications"])
     else: st.info("尚未执行任何规格。")
