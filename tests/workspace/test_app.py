@@ -473,6 +473,8 @@ def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_pa
     assert not snapshot["status"]["approvals"]["protocol"]
 
     complete_plan = dict(protocol)
+    complete_plan["models"] = [dict(protocol["models"][0], id="approved_main", family="wls", covariance="classical", weight="x", weight_kind="inverse_variance", weight_justification="Synthetic inverse variance fixture only"), dict(protocol["models"][0], id="robustness", role="robustness")]
+    complete_plan["exclusions"] = [{"column": "x", "op": "gt", "value": 10, "reason": "Synthetic declared upper bound"}]
     complete_plan["candidates"] = [{
         "rq": "Synthetic robustness candidate",
         "theory_tension": "Fixture only; compare a predeclared alternative explanation.",
@@ -485,6 +487,19 @@ def test_ui_literature_evidence_and_protocol_forms_create_backend_objects(tmp_pa
     saved_complete = workspace.snapshot(project)["protocol_source"]
     assert saved_complete["candidates"][0]["rq"] == "Synthetic robustness candidate"
     assert not workspace.snapshot(project)["status"]["approvals"]["protocol"]
+
+    app.radio[0].set_value("研究概览").run()
+    app.radio[0].set_value("研究计划").run()
+    assert next(x for x in app.selectbox if x.label == "主要因变量").value == "y"
+    assert next(x for x in app.multiselect if x.label.startswith("解释变量")).value == ["x"]
+    assert next(x for x in app.selectbox if x.label == "统计方法").value == "wls"
+    assert next(x for x in app.selectbox if x.label == "标准误").value == "classical"
+    assert next(x for x in app.text_input if x.label.startswith("WLS权重变量")).value == "x"
+    next(x for x in app.text_area if x.label == "正式研究问题").set_value("Updated synthetic research question only")
+    next(b for b in app.button if b.label == "校验并保存计划草案").click().run()
+    assert not app.exception
+    updated = workspace.snapshot(project)["protocol_source"]
+    assert updated == dict(saved_complete, rq="Updated synthetic research question only")
 
 
 def test_ui_run_button_calls_backend_and_refuses_without_current_authorization(tmp_path, monkeypatch):

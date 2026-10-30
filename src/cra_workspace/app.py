@@ -359,6 +359,8 @@ def protocol_page(w, p, s):
     if not numeric or not spans:
         st.info("生成可执行计划还需要数值型结果变量，以及经过定位和实际审阅的支持证据。可以在模型配置与项目授权后，让系统基于这些材料提出候选计划。")
     else:
+        models = current.get("models", [])
+        primary = next((m for m in models if m.get("role") == "primary"), models[0] if models else {})
         with st.form("protocol_form_" + p):
             rq = st.text_area("正式研究问题", current.get("rq", s["brief"]["theme"]))
             theory = current.get("theory", {})
@@ -368,23 +370,30 @@ def protocol_page(w, p, s):
             evidence = st.multiselect("理论依据的已核查证据ID", spans, default=[x for x in theory.get("evidence_ids", []) if x in spans])
             seen = st.text_area("冻结前已经接触过哪些数据、统计或研究结果？", current.get("results_seen_before_freeze", ""))
             a, b = st.columns(2)
-            y = a.selectbox("主要因变量", numeric)
-            xs = b.multiselect("解释变量（不要包含因变量）", predictors)
-            family = a.selectbox("统计方法", ["ols", "logit", "wls"])
-            cov = b.selectbox("标准误", ["HC3", "classical", "cluster"])
+            y = a.selectbox("主要因变量", numeric, index=numeric.index(primary["y"]) if primary.get("y") in numeric else 0)
+            xs = b.multiselect("解释变量（不要包含因变量）", predictors, default=[x for x in primary.get("x", []) if x in predictors])
+            families, covariances = ["ols", "logit", "wls"], ["HC3", "classical", "cluster"]
+            family = a.selectbox("统计方法", families, index=families.index(primary.get("family", "ols")))
+            cov = b.selectbox("标准误", covariances, index=covariances.index(primary.get("covariance", "HC3")))
             st.caption("Logit结果必须为0/1；WLS仅支持有依据的逆方差权重；HC3仅适用于非加权OLS。调查权重不能自动替代复杂抽样方差。")
-            weight = st.text_input("WLS权重变量（其他方法留空）")
-            justification = st.text_input("逆方差权重依据（WLS必填）")
-            cluster = st.text_input("聚类变量（聚类标准误必填）")
-            reference = {name: st.selectbox("类别参照组 · " + name, spec["allowed"]) for name, spec in columns.items() if spec["type"] == "category"}
+            weight = st.text_input("WLS权重变量（其他方法留空）", primary.get("weight", ""))
+            justification = st.text_input("逆方差权重依据（WLS必填）", primary.get("weight_justification", ""))
+            cluster = st.text_input("聚类变量（聚类标准误必填）", primary.get("cluster", ""))
+            reference = {name: st.selectbox("类别参照组 · " + name, spec["allowed"], index=spec["allowed"].index(primary.get("reference", {}).get(name)) if primary.get("reference", {}).get(name) in spec["allowed"] else 0) for name, spec in columns.items() if spec["type"] == "category"}
             exploratory = st.checkbox("这是一项探索性研究，终审成果必须保留探索标记", value=current.get("exploratory", False))
             submitted = st.form_submit_button("校验并保存计划草案", type="primary", disabled=s["running"])
         if submitted:
             def commit():
-                model = {"id": "main", "family": family, "role": "primary", "y": y, "x": xs, "covariance": cov, "reference": {k: v for k, v in reference.items() if k in xs}}
+                model = dict(primary, id=primary.get("id", "main"), family=family, role=primary.get("role", "primary"), y=y, x=xs, covariance=cov, reference={k: v for k, v in reference.items() if k in xs})
+                for field in ("weight", "weight_kind", "weight_justification", "cluster"):
+                    model.pop(field, None)
                 if weight: model.update(weight=weight, weight_kind="inverse_variance", weight_justification=justification)
                 if cluster: model["cluster"] = cluster
-                return w.save_protocol(p, {"schema_version": 2, "rq": rq, "inference": "association", "missing": "complete_case", "results_seen_before_freeze": seen, "theory": {"contribution": contribution, "competing_explanation": competing, "boundary": boundary, "evidence_ids": evidence}, "models": [model], "candidates": [], "exclusions": [], "exploratory": exploratory})
+                revised = copy.deepcopy(current)
+                revised.update(schema_version=2, rq=rq, inference="association", missing="complete_case", results_seen_before_freeze=seen, theory={"contribution": contribution, "competing_explanation": competing, "boundary": boundary, "evidence_ids": evidence}, models=[model if m is primary else copy.deepcopy(m) for m in models] if models else [model], exploratory=exploratory)
+                revised.setdefault("candidates", [])
+                revised.setdefault("exclusions", [])
+                return w.save_protocol(p, revised)
             if act(commit, "计划草案已保存，尚未冻结；请审阅当前版本再确认。"): st.rerun()
     with st.expander("高级计划：多个模型、稳健性与排除规则"):
         raw = st.text_area("完整计划JSON", json.dumps(current, ensure_ascii=False, indent=2), height=320)

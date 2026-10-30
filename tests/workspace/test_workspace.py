@@ -121,6 +121,24 @@ def test_explicit_missing_and_sensitive_exclusion(workspace):
     assert workspace._path(p).joinpath(record["original_path"]).read_bytes() == content
 
 
+def test_legacy_missing_rules_are_restored_only_for_the_reviewed_dataset(workspace):
+    p = workspace.create("Synthetic legacy rules", "Do not reuse rules across datasets", synthetic=True)["project_id"]
+    workspace.import_data(p, "old.csv", b"x,y\n1,2\n99,3\n")
+    book = workspace.snapshot(p)["codebook"]
+    workspace.measurement(p, book, {"x": ["99"]}, "TEST FIXTURE ONLY", NOTE)
+    with workspace._store(p) as store:
+        brief = workspace.snapshot(p)["brief"]
+        # Emulate a legacy project that recorded rules in its declaration only.
+        workspace._path(p).joinpath(brief["data"]["codebook"]).with_name("missing_codes.json").unlink()
+        with store.tx():
+            store.set_meta("measurement_review", workspace._measurement_hash(store.root, brief))
+    assert workspace.snapshot(p)["missing_codes"] == {"x": ["99"]}
+    workspace.import_data(p, "new.csv", b"x,y\n99,1\n100,2\n")
+    current = workspace.snapshot(p)
+    assert not current["measurement_reviewed"]
+    assert current["missing_codes"] == {}
+
+
 def test_review_is_snapshot_bound_single_use_and_not_automatic(workspace):
     p = prepare(workspace)
     ch = workspace.challenge(p, "authorization")

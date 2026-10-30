@@ -137,7 +137,7 @@ class Workspace:
                 declaration = store.get("measurement_declaration") or {}
                 flow = declaration.get("flow", {}) if isinstance(declaration, dict) else {}
                 accepted = flow.get("missing_rules") if isinstance(flow, dict) else None
-                if isinstance(accepted, dict):
+                if ready and isinstance(accepted, dict) and store.meta("measurement_review") == self._measurement_hash(store.root, brief):
                     missing_codes = accepted
                 elif ready:
                     # Stata user-missing codes are suggestions from the file
