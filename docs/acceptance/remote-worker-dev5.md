@@ -16,6 +16,8 @@
 - Streamlit secrets 尚未配置，因此在线前端尚不能连接该 worker。
 - 尚未完成真实模型盲测、独立工程验收、双专家文献核查或三个真实项目试点；本记录不能作为正式科研发布验收。
 - 在独立 Python 3.12 环境完成本机全量 pytest：宿主系统权限下 `245 passed, 5 skipped`。受 Codex 受限进程直接运行时，19 项嵌套 macOS Seatbelt 用例被父级沙盒拒绝；使用宿主权限重跑远程隔离组后 `22 passed`，全量宿主权限运行通过。GitHub Actions 的独立 Linux 构建也成功。
+- 公共 Streamlit 页面真实浏览器冒烟：填写合成项目名称、问题和边界后成功建立项目；概览显示项目输入，实际事件表出现 `initialized` 记录。没有上传文件、真实研究材料、模型密钥或服务凭证。云端页面明确显示远程统计未配置并禁用研究执行。
+- ECS Caddy 示例配置经服务器上的 Caddy 2.11.7 `caddy adapt` 检查通过，生成的监听地址只有 `:443`，转发范围限于 `/v1/health` 和 `/v1/jobs/*`，其余路径返回 404。Caddy 服务仍 disabled/inactive；静态证书文件尚未签发，因而还未提供公网 HTTPS。
 
 ## 数据边界
 

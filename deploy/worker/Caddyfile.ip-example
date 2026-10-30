@@ -1,0 +1,35 @@
+# Example for a static, publicly trusted IP certificate obtained separately
+# with an ACME client that supports IP certificates and TLS-ALPN-01.
+# Place the certificate and key at these paths with root:caddy ownership and
+# mode 0640. Replace the documentation-only IP before deployment.
+{
+	admin off
+	auto_https disable_redirects
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 40s
+			write 45s
+			idle 30s
+		}
+	}
+}
+
+198.51.100.10 {
+	tls /etc/caddy/tls/fullchain.pem /etc/caddy/tls/privkey.pem
+	request_body {
+		max_size 48MB
+	}
+	@api path /v1/health /v1/jobs/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8781 {
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 35s
+			}
+		}
+	}
+	respond 404
+	# Access logging is intentionally omitted to keep credentials and job IDs
+	# out of general proxy logs.
+}
