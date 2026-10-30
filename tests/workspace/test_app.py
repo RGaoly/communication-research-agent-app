@@ -192,6 +192,68 @@ def test_key_clear_removes_pending_input_and_keeps_saved_target(tmp_path, monkey
     assert w.snapshot(p)["status"]["budget"]["calls"] == 0
 
 
+def test_ui_upload_diagnostic_export_and_private_restore_are_real_operations(tmp_path, monkeypatch):
+    """End-to-end UI path with synthetic bytes; no model or external service calls."""
+    import io
+    import json
+    import zipfile
+
+    monkeypatch.setenv("CRA_WORKSPACE_ROOT", str(tmp_path / "ui-roundtrip"))
+    monkeypatch.setenv("CRA_DEPLOYMENT", "local")
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[2] / "streamlit_app.py"), default_timeout=15).run()
+    assert not app.exception
+
+    app.text_input[0].set_value("Synthetic UI roundtrip")
+    app.text_area[0].set_value("Check upload, diagnostic handoff and private recovery")
+    app.text_area[1].set_value("Synthetic fixture only")
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == "建立研究项目").click().run()
+    assert not app.exception
+    project = app.session_state["project"]
+    workspace = app.session_state["workspace"]
+
+    app.radio[0].set_value("材料与测量").run()
+    uploader = next(x for x in app.get("file_uploader") if x.label.startswith("接入CSV或Stata"))
+    uploader.set_value(("synthetic.csv", b"x,y\n1,2\n2,4\n3,5\n", "text/csv")).run()
+    next(b for b in app.button if b.label == "读取并登记数据").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    imported = workspace.snapshot(project)
+    assert imported["materials"]["data"][-1]["records"] == 3
+    assert (workspace.directory / project / imported["brief"]["data"]["csv"]).read_bytes() == b"x,y\n1,2\n2,4\n3,5\n"
+
+    app.radio[0].set_value("稿件与交付").run()
+    next(x for x in app.selectbox if x.label == "成果类型").set_value("diagnostic")
+    next(b for b in app.button if b.label == "生成成果包").click().run()
+    assert not app.exception
+    bundle = app.session_state["bundle_" + project]
+    with zipfile.ZipFile(io.BytesIO(bundle["bytes"])) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["kind"] == "diagnostic"
+        assert manifest["working"] is True
+        assert "diagnostic.json" in archive.namelist()
+
+    next(x for x in app.checkbox if x.label.startswith("我理解恢复备份包含原始材料")).check().run()
+    next(b for b in app.button if b.label == "生成私有恢复备份").click().run()
+    assert not app.exception
+    backup = app.session_state["backup_" + project]["bytes"]
+    with zipfile.ZipFile(io.BytesIO(backup)) as archive:
+        assert "cra-recovery.json" in archive.namelist()
+
+    next(b for b in app.button if b.label == "＋ 新建 / 恢复研究").click().run()
+    assert not app.exception and app.session_state["project"] is None
+    recovery = next(x for x in app.get("file_uploader") if x.label.startswith("选择CRA私有恢复备份"))
+    recovery.set_value(("recovery.zip", backup, "application/zip")).run()
+    next(b for b in app.button if b.label == "导入并验证备份").click().run()
+    assert not app.exception, [x.message for x in app.exception]
+    restored = app.session_state["project"]
+    assert restored != project
+    restored_snapshot = app.session_state["workspace"].snapshot(restored)
+    assert restored_snapshot["brief"]["name"] == "Synthetic UI roundtrip"
+    assert restored_snapshot["materials"]["data"][-1]["records"] == 3
+    assert restored_snapshot["status"]["paused"] is True
+    assert not restored_snapshot["status"]["approvals"]["authorization"]
+
+
 def test_settings_button_shows_remote_health_when_current_local_isolation_fails(tmp_path, monkeypatch):
     from cra_workspace import app as app_module, environment
 

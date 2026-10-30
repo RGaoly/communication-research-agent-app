@@ -1,6 +1,7 @@
 """Frozen release regression identities, not proof that tests actually ran.
 
-Base: 180 cases at f9d1a225 plus 11 software-evidence negative controls.
+Base: 180 cases at f9d1a225 plus 11 software-evidence negative controls, then
+the UI upload/export/recovery round-trip added at the next candidate freeze.
 Independent operator still verifies invocation, source origin and actual execution.
 Update only at candidate freeze; no existing identity may silently disappear.
 """
@@ -196,4 +197,5 @@ CASES = (
     ('tests.test_cra.ResearchAgentTests', 'test_unmarked_prose_number_is_explicitly_out_of_scope'),
     ('tests.test_cra.ResearchAgentTests', 'test_valid_reference_format_does_not_claim_truth'),
     ('tests.test_cra.ResearchAgentTests', 'test_wrong_svg_point_count'),
+    ('tests.workspace.test_app', 'test_ui_upload_diagnostic_export_and_private_restore_are_real_operations'),
 )
